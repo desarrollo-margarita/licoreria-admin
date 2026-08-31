@@ -120,36 +120,36 @@ export default function FeatureGrid() {
             return (
               <div
                 key={idx}
-                className="relative bg-gradient-to-b from-[#1a0f36]/85 to-[#0d061e]/90 border border-white/10 hover:border-cyan-500/40 rounded-2xl backdrop-blur-xl p-7 sm:p-8 flex flex-col justify-between h-full group transition-all duration-300 hover:-translate-y-1 shadow-xl overflow-hidden"
+                className="relative bg-gradient-to-b from-[#1a0f36]/85 to-[#0d061e]/90 border border-white/10 hover:border-cyan-500/40 rounded-2xl backdrop-blur-xl p-5 sm:p-5.5 flex flex-col justify-between h-full group transition-all duration-300 hover:-translate-y-1 shadow-xl overflow-hidden"
               >
                 {/* Number Watermark */}
-                <div className="absolute top-6 right-7 text-4xl font-mono font-black text-white/[0.04] group-hover:text-cyan-400/[0.08] transition-colors select-none pointer-events-none">
+                <div className="absolute top-4 right-5 text-3xl font-mono font-black text-white/[0.04] group-hover:text-cyan-400/[0.08] transition-colors select-none pointer-events-none">
                   {item.num}
                 </div>
 
                 <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-5">
-                    <div className={`w-11 h-11 rounded-xl ${item.iconBg} flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-md`}>
-                      <Icon className={`w-5 h-5 ${item.iconColor}`} />
+                  <div className="flex items-center justify-between mb-3">
+                    <div className={`w-9 h-9 rounded-lg ${item.iconBg} flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-md`}>
+                      <Icon className={`w-4 h-4 ${item.iconColor}`} />
                     </div>
-                    <span className={`text-[9px] font-black px-2.5 py-1 rounded-full border tracking-wider ${item.badgeColor}`}>
+                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border tracking-wider ${item.badgeColor}`}>
                       {item.tag}
                     </span>
                   </div>
 
-                  <h3 className="text-base sm:text-lg font-black text-white mb-2.5 group-hover:text-cyan-300 transition-colors tracking-tight">
+                  <h3 className="text-base font-black text-white mb-1.5 group-hover:text-cyan-300 transition-colors tracking-tight">
                     {item.title}
                   </h3>
                   
-                  <p className="text-slate-300/90 text-xs sm:text-sm leading-relaxed mb-6 font-normal">
+                  <p className="text-slate-300/90 text-xs leading-relaxed mb-3.5 font-normal">
                     {item.description}
                   </p>
                 </div>
 
-                <div className="pt-5 border-t border-white/[0.08] space-y-2.5 relative z-10">
+                <div className="pt-3 border-t border-white/[0.08] space-y-1.5 relative z-10">
                   {item.bullets.map((b, i) => (
-                    <div key={i} className="flex items-center gap-2.5 text-xs text-slate-200 bg-slate-950/40 p-2.5 rounded-lg border border-white/[0.04]">
-                      <div className="w-3.5 h-3.5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center flex-shrink-0">
+                    <div key={i} className="flex items-center gap-2 text-[11px] sm:text-xs text-slate-200 bg-slate-950/40 py-1.5 px-2.5 rounded-lg border border-white/[0.04]">
+                      <div className="w-3 h-3 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center flex-shrink-0">
                         <Check className="w-2 h-2" />
                       </div>
                       <span className="font-medium truncate">{b}</span>

@@ -60,35 +60,35 @@ export default function Testimonials() {
           {testimonials.map((t, idx) => (
             <div
               key={idx}
-              className="relative bg-gradient-to-b from-[#1a0f36]/85 to-[#0d061e]/90 border border-white/10 hover:border-cyan-500/40 rounded-[28px] backdrop-blur-xl p-6 sm:p-10 lg:p-12 flex flex-col justify-between group transition-all duration-300 hover:-translate-y-1 shadow-2xl overflow-hidden"
+              className="relative bg-gradient-to-b from-[#1a0f36]/85 to-[#0d061e]/90 border border-white/10 hover:border-cyan-500/40 rounded-2xl backdrop-blur-xl p-5 sm:p-6 flex flex-col justify-between group transition-all duration-300 hover:-translate-y-1 shadow-xl overflow-hidden"
             >
               {/* Quote Mark Watermark */}
-              <div className="absolute top-8 right-10 text-white/[0.04] group-hover:text-cyan-400/[0.1] transition-colors pointer-events-none">
-                <Quote className="w-14 h-14" />
+              <div className="absolute top-4 right-6 text-white/[0.04] group-hover:text-cyan-400/[0.1] transition-colors pointer-events-none">
+                <Quote className="w-10 h-10" />
               </div>
 
               <div className="relative z-10">
                 {/* Rating Stars Chip */}
-                <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-slate-950/80 border border-amber-400/30 mb-8 shadow-sm">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-950/80 border border-amber-400/30 mb-3 shadow-sm">
                   {[...Array(t.rating)].map((_, i) => (
-                    <Star key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                    <Star key={i} className="w-3 h-3 fill-amber-400 text-amber-400" />
                   ))}
-                  <span className="text-[11px] text-amber-300 font-bold ml-1">5.0 / 5.0</span>
+                  <span className="text-[10px] text-amber-300 font-bold ml-0.5">5.0 / 5.0</span>
                 </div>
 
                 {/* Highlight */}
-                <h3 className="text-lg font-black text-white mb-4 group-hover:text-cyan-300 transition-colors leading-snug tracking-tight">
+                <h3 className="text-base font-black text-white mb-2 group-hover:text-cyan-300 transition-colors leading-snug tracking-tight">
                   "{t.highlight}"
                 </h3>
 
                 {/* Quote */}
-                <p className="text-xs sm:text-sm text-slate-300/90 leading-relaxed italic mb-10 font-normal">
+                <p className="text-xs text-slate-300/90 leading-relaxed italic mb-4 font-normal">
                   "{t.quote}"
                 </p>
               </div>
 
               {/* Author & Business info */}
-              <div className="pt-7 border-t border-white/[0.08] flex items-center justify-between relative z-10">
+              <div className="pt-3 border-t border-white/[0.08] flex items-center justify-between relative z-10">
                 <div>
                   <div className="text-sm font-bold text-white flex items-center gap-1.5">
                     {t.name}

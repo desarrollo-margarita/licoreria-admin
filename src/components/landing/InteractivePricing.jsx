@@ -138,64 +138,53 @@ export default function InteractivePricing() {
                 className={`relative ${
                   isPop 
                     ? 'bg-gradient-to-b from-[#26124c]/95 to-[#12082a]/95 border border-orange-500/50 hover:border-orange-500 shadow-2xl shadow-orange-500/20' 
-                    : 'bg-gradient-to-b from-[#1a0f36]/85 to-[#0d061e]/90 border border-white/10 hover:border-cyan-500/40 shadow-2xl'
-                } rounded-[30px] backdrop-blur-xl p-7 sm:p-10 lg:p-12 flex flex-col justify-between h-full group transition-all duration-300 hover:-translate-y-1 overflow-hidden`}
+                    : 'bg-gradient-to-b from-[#1a0f36]/85 to-[#0d061e]/90 border border-white/10 hover:border-cyan-500/40 shadow-xl'
+                } rounded-2xl backdrop-blur-xl p-5 sm:p-6 lg:p-7 flex flex-col justify-between h-full group transition-all duration-300 hover:-translate-y-1 overflow-hidden`}
               >
-                {/* Popular Floating Ribbon Badge */}
                 {isPop && (
-                  <div className="absolute top-0 right-0 left-0 bg-gradient-to-r from-orange-500 via-pink-500 to-purple-600 py-2 px-4 text-center">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-white flex items-center justify-center gap-1.5 shadow-sm">
-                      <Sparkles className="w-3.5 h-3.5" /> RECOMENDADO · MÁS POPULAR (AHORRA 44%)
+                  <div className="absolute top-0 right-0 left-0 bg-gradient-to-r from-orange-500 via-pink-500 to-purple-600 py-1.5 px-4 text-center">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-white flex items-center justify-center gap-1 shadow-sm">
+                      <Sparkles className="w-3 h-3" /> RECOMENDADO · MÁS POPULAR (AHORRA 44%)
                     </span>
                   </div>
                 )}
 
-                <div className={isPop ? 'pt-6 relative z-10' : 'relative z-10'}>
-                  {/* Header Block */}
-                  <div className="mb-9">
-                    <div className="flex items-center justify-between gap-3.5 mb-7">
-                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg ${style.iconBg}`}>
-                        <Icon className="w-7 h-7" />
+                <div className={isPop ? 'pt-4 relative z-10' : 'relative z-10'}>
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between gap-3 mb-3">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-md ${style.iconBg}`}>
+                        <Icon className="w-5 h-5" />
                       </div>
-                      <span className={`text-[11px] font-black uppercase px-3.5 py-1.5 rounded-full border tracking-wider ${style.badge}`}>
+                      <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full border tracking-wider ${style.badge}`}>
                         {plan.includedBoxes} {plan.includedBoxes === 1 ? 'Caja Incluida' : 'Cajas Incluidas'}
                       </span>
                     </div>
 
-                    <h3 className="text-2xl font-black text-white tracking-tight mb-3">{plan.name}</h3>
+                    <h3 className="text-lg sm:text-xl font-black text-white tracking-tight mb-1">{plan.name}</h3>
                     
-                    {/* Price Tag */}
-                    <div className="flex items-baseline gap-1.5 my-4">
-                      <span className="text-2xl text-slate-400 font-bold">$</span>
-                      <span className={`text-5xl sm:text-6xl font-black tracking-tight ${style.priceColor}`}>
+                    <div className="flex items-baseline gap-1 my-2">
+                      <span className="text-xl text-slate-400 font-bold">$</span>
+                      <span className={`text-4xl sm:text-5xl font-black tracking-tight ${style.priceColor}`}>
                         {plan.basePrice}
                       </span>
-                      <span className="text-slate-400 text-sm font-semibold">{plan.periodLabel}</span>
+                      <span className="text-slate-400 text-xs font-semibold">{plan.periodLabel}</span>
                     </div>
 
-                    <div className="inline-block text-xs font-bold text-slate-300 bg-slate-950/60 px-3.5 py-1.5 rounded-lg border border-white/[0.06]">
+                    <div className="inline-block text-[11px] font-bold text-slate-300 bg-slate-950/60 px-2.5 py-1 rounded-lg border border-white/[0.06]">
                       {plan.billingNote}
                     </div>
                   </div>
 
-                  {/* Divider */}
-                  <div className="w-full h-px bg-white/[0.08] mb-9" />
-
-                  {/* Description */}
-                  <p className="text-xs sm:text-sm text-slate-300 leading-relaxed mb-9">
-                    {plan.desc}
-                  </p>
-
-                  {/* Features in rich dark chips */}
-                  <div className="space-y-3.5 mb-11 pb-2">
+                  {/* Features in compact dark chips */}
+                  <div className="space-y-2 mb-5 pb-1">
                     {plan.features.map((f, i) => (
-                      <div key={i} className="flex items-center gap-3.5 text-xs sm:text-sm text-slate-200 bg-slate-950/40 p-3.5 rounded-xl border border-white/[0.04]">
-                        <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      <div key={i} className="flex items-center gap-2.5 text-xs text-slate-200 bg-slate-950/40 py-2 px-3 rounded-lg border border-white/[0.04]">
+                        <div className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 ${
                           plan.accent === 'orange' ? 'bg-orange-500/20 text-orange-400' : plan.accent === 'cyan' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-emerald-500/20 text-emerald-400'
                         }`}>
-                          <Check className="w-3 h-3" />
+                          <Check className="w-2.5 h-2.5" />
                         </div>
-                        <span className={`leading-snug ${i === 0 && isPop ? 'font-black text-white' : 'font-medium'}`}>
+                        <span className={`leading-snug text-xs ${i === 0 && isPop ? 'font-black text-white' : 'font-medium'}`}>
                           {f}
                         </span>
                       </div>
@@ -208,7 +197,7 @@ export default function InteractivePricing() {
                   href={getWaLink(plan)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={`w-full py-4 rounded-full text-xs sm:text-sm font-black tracking-wide text-center transition-all duration-200 block relative z-10 ${plan.ctaClass}`}
+                  className={`w-full py-3 rounded-full text-xs sm:text-sm font-black tracking-wide text-center transition-all duration-200 block relative z-10 ${plan.ctaClass}`}
                 >
                   {plan.ctaLabel} (${plan.basePrice})
                 </a>
@@ -218,7 +207,7 @@ export default function InteractivePricing() {
         </div>
 
         {/* Box Calculator */}
-        <div className="max-w-4xl mx-auto p-6 sm:p-10 lg:p-12 bg-gradient-to-b from-[#1a0f36]/85 to-[#0d061e]/90 border border-white/10 rounded-[28px] backdrop-blur-xl shadow-2xl w-full">
+        <div className="max-w-4xl mx-auto p-5 sm:p-7 bg-gradient-to-b from-[#1a0f36]/85 to-[#0d061e]/90 border border-white/10 rounded-2xl backdrop-blur-xl shadow-2xl w-full">
           <div className="flex flex-col md:flex-row items-center justify-between gap-8">
             <div className="space-y-2 text-center md:text-left">
               <span className="text-[11px] font-bold text-cyan-400 uppercase tracking-widest">
