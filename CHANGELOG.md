@@ -7,6 +7,18 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ---
 
+## [1.0.1] - 2026-08-31
+
+### 🛠️ Mejoras y Correcciones (Fixed & Improved)
+* **Persistencia de Sesión y Vista SuperAdmin (`App.jsx`, `AuthContext.jsx`):**
+  * Se implementó la restauración automática del estado de vista (`currentView`) tras recargas de página (`F5`). Si el usuario está autenticado como administrador, se mantiene activo en el `AdminDashboard` sin ser redirigido a la landing page.
+  * Sincronización precisa de navegación y limpieza de estado al hacer clic en *"Volver a la Web"* o cerrar sesión (`logout`).
+* **Diseño y Espaciado de Navegación (`Navbar.jsx`):**
+  * Se corrigió la superposición y cercanía entre el enlace **FAQ** y el botón de acción **Acceso SuperAdmin**.
+  * Se introdujo un divisor visual de cristal (`border-l border-white/10`), margen izquierdo independiente y ajuste responsivo de separaciones (`gap-5 2xl:gap-7`) para garantizar una legibilidad impecable en todas las resoluciones de pantalla.
+
+---
+
 ## [1.0.0] - 2026-08-31
 
 ### ✨ Añadido (Added)

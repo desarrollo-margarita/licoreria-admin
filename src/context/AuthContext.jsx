@@ -42,6 +42,7 @@ export function AuthProvider({ children }) {
       try {
         sessionStorage.setItem(STORAGE_KEY, 'true');
         sessionStorage.setItem(USER_KEY, cleanUser);
+        sessionStorage.setItem('vx_current_view', 'admin');
       } catch (e) {
         console.warn('SessionStorage unavailable', e);
       }
@@ -60,6 +61,7 @@ export function AuthProvider({ children }) {
     try {
       sessionStorage.removeItem(STORAGE_KEY);
       sessionStorage.removeItem(USER_KEY);
+      sessionStorage.setItem('vx_current_view', 'landing');
     } catch (e) {
       console.warn('SessionStorage unavailable', e);
     }

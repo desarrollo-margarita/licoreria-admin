@@ -22,11 +22,11 @@ export default function Navbar({ onOpenAdmin }) {
       {/* Brand Bottom Line */}
       <div className="absolute bottom-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-purple-600 via-cyan-400 via-pink-500 to-orange-400 opacity-70 pointer-events-none" />
 
-      <div className="w-full px-6 sm:px-10 lg:px-16 xl:px-20 h-20 flex items-center justify-between">
+      <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-10 xl:px-12 h-20 flex items-center justify-between gap-4">
         
         {/* Brand Logo with Official Image */}
         <a href="#" className="flex items-center gap-3.5 group flex-shrink-0">
-          <div className="w-14 h-14 flex items-center justify-center flex-shrink-0">
+          <div className="w-13 h-13 sm:w-14 sm:h-14 flex items-center justify-center flex-shrink-0">
             <img
               src="/ventrox-logo.png"
               alt="VentroX Logo"
@@ -49,10 +49,10 @@ export default function Navbar({ onOpenAdmin }) {
         </a>
 
         {/* Desktop Navigation Links */}
-        <nav className="hidden xl:flex items-center gap-9 text-sm font-semibold text-slate-200">
+        <nav className="hidden xl:flex items-center gap-5 2xl:gap-7 text-xs 2xl:text-sm font-semibold text-slate-200">
           <a
             href="#caracteristicas"
-            className="hover:text-cyan-400 transition-colors py-1 relative group"
+            className="hover:text-cyan-400 transition-colors py-1 relative group whitespace-nowrap"
           >
             <span>Funcionalidades</span>
             <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-gradient-to-r from-purple-500 via-pink-500 to-cyan-400 group-hover:w-full transition-all duration-300 rounded-full" />
@@ -65,7 +65,7 @@ export default function Navbar({ onOpenAdmin }) {
             onMouseLeave={() => setRubrosOpen(false)}
           >
             <button 
-              className="flex items-center gap-1.5 hover:text-cyan-400 transition-colors py-1 cursor-pointer"
+              className="flex items-center gap-1.5 hover:text-cyan-400 transition-colors py-1 cursor-pointer whitespace-nowrap"
             >
               <span>Software para...</span>
               <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${rubrosOpen ? 'rotate-180 text-cyan-400' : ''}`} />
@@ -103,7 +103,7 @@ export default function Navbar({ onOpenAdmin }) {
 
           <a
             href="#simulador"
-            className="hover:text-cyan-400 transition-colors py-1 relative group"
+            className="hover:text-cyan-400 transition-colors py-1 relative group whitespace-nowrap"
           >
             <span>Simulador POS</span>
             <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-gradient-to-r from-purple-500 via-pink-500 to-cyan-400 group-hover:w-full transition-all duration-300 rounded-full" />
@@ -111,7 +111,7 @@ export default function Navbar({ onOpenAdmin }) {
 
           <a
             href="#planes"
-            className="hover:text-cyan-400 transition-colors py-1 relative group"
+            className="hover:text-cyan-400 transition-colors py-1 relative group whitespace-nowrap"
           >
             <span>Planes y Precios</span>
             <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-gradient-to-r from-purple-500 via-pink-500 to-cyan-400 group-hover:w-full transition-all duration-300 rounded-full" />
@@ -119,7 +119,7 @@ export default function Navbar({ onOpenAdmin }) {
 
           <a
             href="#testimonios"
-            className="hover:text-cyan-400 transition-colors py-1 relative group"
+            className="hover:text-cyan-400 transition-colors py-1 relative group whitespace-nowrap"
           >
             <span>Testimonios</span>
             <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-gradient-to-r from-purple-500 via-pink-500 to-cyan-400 group-hover:w-full transition-all duration-300 rounded-full" />
@@ -127,18 +127,18 @@ export default function Navbar({ onOpenAdmin }) {
 
           <a
             href="#faq"
-            className="hover:text-cyan-400 transition-colors py-1 relative group"
+            className="hover:text-cyan-400 transition-colors py-1 relative group whitespace-nowrap"
           >
             <span>FAQ</span>
             <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-gradient-to-r from-purple-500 via-pink-500 to-cyan-400 group-hover:w-full transition-all duration-300 rounded-full" />
           </a>
         </nav>
 
-        {/* Desktop Actions */}
-        <div className="hidden lg:flex items-center gap-4 flex-shrink-0">
+        {/* Desktop Actions with generous margin and divider */}
+        <div className="hidden lg:flex items-center gap-3 xl:gap-4 flex-shrink-0 ml-4 xl:ml-8 pl-4 xl:pl-6 border-l border-white/10">
           <button
             onClick={onOpenAdmin}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-full font-bold text-xs bg-white/[0.07] hover:bg-white/[0.14] text-slate-200 hover:text-white border border-white/15 backdrop-blur-md transition-all cursor-pointer"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-full font-bold text-xs bg-white/[0.07] hover:bg-white/[0.14] text-slate-200 hover:text-white border border-white/15 hover:border-cyan-500/40 backdrop-blur-md transition-all cursor-pointer whitespace-nowrap"
           >
             <ShieldCheck className="w-4 h-4 text-cyan-400" />
             <span>Acceso SuperAdmin</span>
@@ -148,7 +148,7 @@ export default function Navbar({ onOpenAdmin }) {
             href="https://wa.me/584248486105?text=Hola%20VentroX%20POS%2C%20quiero%20solicitar%20una%20demostraci%C3%B3n%20gratuita%20para%20mi%20negocio"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-full font-black text-xs bg-gradient-to-r from-orange-500 via-pink-500 to-purple-600 text-white shadow-lg shadow-pink-500/25 hover:opacity-95 transition-all"
+            className="inline-flex items-center justify-center gap-2 px-5 2xl:px-6 py-2.5 rounded-full font-black text-xs bg-gradient-to-r from-orange-500 via-pink-500 to-purple-600 text-white shadow-lg shadow-pink-500/25 hover:opacity-95 transition-all whitespace-nowrap"
           >
             <Sparkles className="w-4 h-4" />
             <span>Solicitar Demo WhatsApp</span>
