@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { 
-  Store, Copy, MessageCircle, Play, Pause, Search, Calendar, Sparkles, KeyRound, 
-  Edit3, LayoutList, LayoutGrid, Monitor, ShieldCheck, Phone, Check, ExternalLink,
-  DollarSign, Receipt, Download, RefreshCw, Smartphone
+  Store, Copy, MessageCircle, Play, Pause, Search, Calendar, Sparkles, 
+  Edit3, LayoutList, LayoutGrid, Monitor, Check, 
+  DollarSign, Receipt, Download, Sliders
 } from 'lucide-react';
 import Badge from '../ui/Badge';
 import { formatDate, getDaysRemaining } from '../../lib/licenseUtils';
@@ -24,6 +24,7 @@ export default function ClientGrid({
   onRecordPayment,
   onOpenPaymentHistory,
   onOpenDeviceManager,
+  onOpenFeatureFlags,
   onExportCsv
 }) {
   const [viewMode, setViewMode] = useState('list');
@@ -425,6 +426,16 @@ export default function ClientGrid({
                             {isSuspended ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
                           </button>
 
+                          {/* Feature Flags / Modules Button */}
+                          <button
+                            type="button"
+                            onClick={() => onOpenFeatureFlags && onOpenFeatureFlags(sub)}
+                            className="p-2 rounded-xl bg-white/[0.05] hover:bg-indigo-500/20 text-slate-400 hover:text-indigo-300 border border-white/10 hover:border-indigo-500/40 transition-all cursor-pointer"
+                            title="Gestionar módulos y aliado comercial"
+                          >
+                            <Sliders className="w-3.5 h-3.5" />
+                          </button>
+
                           {/* Edit Business Button */}
                           <button
                             type="button"
@@ -629,6 +640,14 @@ export default function ClientGrid({
                       title={isSuspended ? 'Reactivar Licencia' : 'Suspender Licencia'}
                     >
                       {isSuspended ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onOpenFeatureFlags && onOpenFeatureFlags(sub)}
+                      className="p-2 rounded-xl bg-white/[0.05] hover:bg-indigo-500/20 text-slate-400 hover:text-indigo-300 border border-white/10 hover:border-indigo-500/40 transition-all cursor-pointer"
+                      title="Gestionar módulos y aliado comercial"
+                    >
+                      <Sliders className="w-4 h-4" />
                     </button>
                     <button
                       type="button"

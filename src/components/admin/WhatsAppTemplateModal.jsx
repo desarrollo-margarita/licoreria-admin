@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   X, MessageCircle, Copy, Check, Send, Sparkles, Bell, 
-  AlertTriangle, KeyRound, Headphones, FileText, CheckCircle2 
+  AlertTriangle, KeyRound, Headphones, CheckCircle2 
 } from 'lucide-react';
 import { formatDate, getDaysRemaining } from '../../lib/licenseUtils';
 

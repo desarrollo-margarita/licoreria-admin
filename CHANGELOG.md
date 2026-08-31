@@ -7,6 +7,39 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ---
 
+## [1.1.0] - 2026-08-31
+
+### ✨ Suite Avanzada SuperAdmin SaaS & Menú Lateral de Navegación
+* **Menú Lateral Responsivo y Colapsable (`AdminSidebar.jsx`):**
+  * Navegación lateral organizada por módulos: *Comercios & Licencias*, *Finanzas & Cobranzas*, *Radar & Cajas POS*, *Control Global & OTA*, *Mesa de Ayuda* y *Bitácora de Auditoría*.
+  * Modo colapsable en escritorio con tooltips y drawer lateral para dispositivos móviles.
+  * Tarjeta de usuario con nombre, rol (`SUPERADMIN`, `FINANZAS`, `SOPORTE`) y estado de sincronización con Supabase.
+* **Control de Módulos & Feature Flags por Comercio (`FeatureFlagsModal.jsx`):**
+  * Activación/desactivación de características modulares por cliente (Cashea, Impresoras Fiscales, Múltiples Almacenes, Kardex Avanzado, Comandas/Mesas, Reportes PDF, WhatsApp).
+  * Asignación de aliado/distribuidor comercial y tasa de comisión por renovación.
+* **Comprobantes y Recibos Digitales Imprimibles (`ReceiptModal.jsx`):**
+  * Generación de recibos con formato formal para descarga/impresión en PDF y envío instantáneo con mensaje preformateado a WhatsApp.
+  * Desglose bimoneda (USD y VES a tasa oficial BCV), código QR de verificación y número de folio correlativo.
+* **Centro de Finanzas & Flujo de Caja (`FinanzasTab.jsx`, `CashFlowCalendar.jsx`):**
+  * Calendario mensual de vencimientos y proyección de ingresos esperados a 7, 15 y 30 días.
+  * Bandeja de aprobación y rechazo de pagos reportados por clientes.
+  * Resumen y cálculo automático de comisiones acumuladas por distribuidor.
+* **Radar y Telemetría en Tiempo Real (`TelemetriaTab.jsx`):**
+  * Monitoreo en vivo de cajas y dispositivos POS conectados con semáforos de actividad (Online, Reciente, Offline), versión de software e ID de hardware.
+* **Control Global & Parámetros OTA (`ControlGlobalTab.jsx`):**
+  * Sincronizador centralizado de Tasa BCV Oficial para toda la red.
+  * Definición de versión mínima obligatoria del POS y switch de Modo Mantenimiento Global con mensaje broadcast.
+* **Mesa de Ayuda & Tickets de Soporte (`SoporteTab.jsx`, `SupportTicketModal.jsx`):**
+  * Gestión de incidencias técnicas con prioridades, estados y botón directo de atención por WhatsApp.
+* **Bitácora de Auditoría Inmutable (`AuditoriaTab.jsx`):**
+  * Trazabilidad completa de operaciones administrativas (pagos, extensiones, cambios de plan, módulos).
+* **Portal de Pago Express para Clientes (`ClientPaymentPortalModal.jsx`):**
+  * Vista para consulta de licencia y reporte de comprobantes bancarios.
+* **Sistema de Roles y Permisos Granulares (`AuthContext.jsx`):**
+  * Soporte de perfiles `superadmin`, `finanzas` y `soporte` con permisos diferenciados.
+
+---
+
 ## [1.0.1] - 2026-08-31
 
 ### 🛠️ Mejoras y Correcciones (Fixed & Improved)

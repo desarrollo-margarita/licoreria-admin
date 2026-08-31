@@ -20,6 +20,9 @@ CREATE TABLE IF NOT EXISTS public.businesses (
     contact_person TEXT,
     license_key TEXT UNIQUE NOT NULL,
     is_active INTEGER DEFAULT 1,
+    distributor_name TEXT,
+    distributor_commission NUMERIC DEFAULT 0.00,
+    modules_config JSONB DEFAULT '{"cashea": true, "fiscal_printer": true, "multi_warehouse": true, "kardex": true, "restaurant_tables": false, "pdf_reports": true, "whatsapp_receipts": true}'::jsonb,
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
@@ -50,8 +53,12 @@ CREATE TABLE IF NOT EXISTS public.payments (
     amount_ves NUMERIC DEFAULT 0.00,
     payment_method TEXT NOT NULL DEFAULT 'ZELLE',
     reference_code TEXT,
+    receipt_number TEXT,
+    status TEXT DEFAULT 'APPROVED', -- 'APPROVED', 'PENDING_VERIFICATION', 'REJECTED'
+    proof_url TEXT,
     payment_date TIMESTAMPTZ DEFAULT now(),
     period_extended_days INTEGER DEFAULT 0,
+    distributor_commission_usd NUMERIC DEFAULT 0.00,
     notes TEXT,
     created_at TIMESTAMPTZ DEFAULT now()
 );
@@ -70,11 +77,58 @@ CREATE TABLE IF NOT EXISTS public.pos_devices (
     UNIQUE(license_key, device_id)
 );
 
--- 5. Deshabilitar RLS para permitir sincronización fluida entre POS y SuperAdmin
+-- 5. Tabla de Mesa de Ayuda y Tickets de Soporte
+CREATE TABLE IF NOT EXISTS public.support_tickets (
+    id BIGSERIAL PRIMARY KEY,
+    business_id BIGINT,
+    license_key TEXT NOT NULL,
+    business_name TEXT NOT NULL,
+    contact_phone TEXT,
+    title TEXT NOT NULL,
+    description TEXT,
+    priority TEXT DEFAULT 'MEDIA', -- 'ALTA', 'MEDIA', 'BAJA'
+    status TEXT DEFAULT 'ABIERTO', -- 'ABIERTO', 'EN_PROCESO', 'RESUELTO'
+    assigned_to TEXT DEFAULT 'Soporte',
+    resolution_notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    resolved_at TIMESTAMPTZ
+);
+
+-- 6. Tabla de Bitácora de Auditoría SuperAdmin
+CREATE TABLE IF NOT EXISTS public.audit_logs (
+    id BIGSERIAL PRIMARY KEY,
+    user_name TEXT NOT NULL,
+    user_role TEXT NOT NULL DEFAULT 'superadmin',
+    action_type TEXT NOT NULL,
+    description TEXT NOT NULL,
+    target_business TEXT,
+    metadata JSONB,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 7. Tabla de Configuración Global del Ecosistema
+CREATE TABLE IF NOT EXISTS public.global_config (
+    id INTEGER PRIMARY KEY DEFAULT 1,
+    bcv_rate NUMERIC DEFAULT 65.50,
+    min_pos_version TEXT DEFAULT '1.0.0',
+    maintenance_mode BOOLEAN DEFAULT false,
+    maintenance_message TEXT DEFAULT 'Sistema en mantenimiento preventivo. Volvemos en breve.',
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Insertar registro por defecto en global_config si no existe
+INSERT INTO public.global_config (id, bcv_rate, min_pos_version, maintenance_mode, maintenance_message)
+VALUES (1, 65.50, '1.0.0', false, 'Sistema en mantenimiento preventivo. Volvemos en breve.')
+ON CONFLICT (id) DO NOTHING;
+
+-- 8. Deshabilitar RLS para permitir sincronización fluida entre POS y SuperAdmin
 ALTER TABLE public.businesses DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.subscriptions DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payments DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pos_devices DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.support_tickets DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_logs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.global_config DISABLE ROW LEVEL SECURITY;
 `;
 
 export function cleanSupabaseUrl(raw) {

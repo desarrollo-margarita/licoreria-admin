@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { 
-  Sparkles, CheckCircle2, AlertTriangle, ShieldCheck, DollarSign, Monitor, Calendar, ArrowRight
+  Sparkles, CheckCircle2, AlertTriangle, ShieldCheck, ArrowRight
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import Modal from '../ui/Modal';
@@ -13,12 +13,12 @@ export default function ChangePlanModal({
   business,
   onPlanChanged
 }) {
-  if (!business) return null;
-
-  const currentPlan = business.planType || 'ANUAL';
+  const currentPlan = business?.planType || 'ANUAL';
   const [selectedPlan, setSelectedPlan] = useState(currentPlan);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  if (!business) return null;
 
   const plans = [
     {

@@ -272,6 +272,18 @@ Gracias por confiar en *VentroX POS* 🚀`;
 
                   {/* Actions */}
                   <div className="flex items-center gap-2 flex-shrink-0 w-full sm:w-auto justify-end">
+                    {onOpenDigitalReceipt && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenDigitalReceipt(pay, business)}
+                        className="px-3 py-1.5 rounded-xl font-bold text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition-all flex items-center gap-1.5 cursor-pointer"
+                        title="Ver e Imprimir Recibo Digital PDF"
+                      >
+                        <Receipt className="w-3.5 h-3.5" />
+                        <span>Recibo PDF</span>
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       onClick={() => handleCopyReceipt(pay)}
@@ -279,7 +291,7 @@ Gracias por confiar en *VentroX POS* 🚀`;
                       title="Copiar comprobante para WhatsApp"
                     >
                       {copiedReceipt ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                      <span>{copiedReceipt ? 'Copiado' : 'Recibo'}</span>
+                      <span>{copiedReceipt ? 'Copiado' : 'Texto'}</span>
                     </button>
 
                     <button

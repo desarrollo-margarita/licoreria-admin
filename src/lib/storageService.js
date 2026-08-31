@@ -77,6 +77,16 @@ export const fetchAllBusinesses = async () => {
       const paymentsCount = paymentCountMap[biz.id] || paymentCountMap[licenseKey] || 0;
       const connectedDevices = devicesCountMap[licenseKey] || 0;
 
+      const defaultModules = {
+        cashea: true,
+        fiscal_printer: true,
+        multi_warehouse: true,
+        kardex: true,
+        restaurant_tables: false,
+        pdf_reports: true,
+        whatsapp_receipts: true
+      };
+
       cloudList.push({
         id: biz.id || sub.id || Math.random().toString(),
         businessId: biz.id,
@@ -93,6 +103,9 @@ export const fetchAllBusinesses = async () => {
         connectedDevices,
         ltvUsd: ltv,
         paymentsCount,
+        distributorName: biz.distributor_name || '',
+        distributorCommission: parseFloat(biz.distributor_commission || 0),
+        modulesConfig: biz.modules_config ? { ...defaultModules, ...(typeof biz.modules_config === 'string' ? JSON.parse(biz.modules_config) : biz.modules_config) } : defaultModules,
         expirationDate: sub.expiration_date ? new Date(sub.expiration_date).toISOString() : biz.expiration_date ? new Date(biz.expiration_date).toISOString() : defaultExp.toISOString(),
         startDate: sub.start_date ? new Date(sub.start_date).toISOString() : new Date(biz.created_at || Date.now()).toISOString(),
         notes: sub.notes || biz.notes || ''
@@ -715,4 +728,474 @@ export const exportBusinessesToCsv = (businesses = []) => {
 
   return true;
 };
+
+// ============================================================================
+// NUEVAS FUNCIONALIDADES SAAS: CONFIGURACIÓN GLOBAL, AUDITORÍA, TICKETS Y MÓDULOS
+// ============================================================================
+
+/**
+ * 1. Obtiene la configuración global del ecosistema (Tasa BCV, Versión POS, Mantenimiento)
+ */
+export const fetchGlobalConfig = async () => {
+  const supabase = getSupabaseClient();
+  const fallback = {
+    bcvRate: 65.50,
+    minPosVersion: '1.0.0',
+    maintenanceMode: false,
+    maintenanceMessage: 'Sistema en mantenimiento preventivo. Volvemos en breve.',
+    updatedAt: new Date().toISOString()
+  };
+
+  if (!supabase) {
+    try {
+      const stored = localStorage.getItem('vx_global_config');
+      return stored ? JSON.parse(stored) : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('global_config')
+      .select('*')
+      .eq('id', 1)
+      .maybeSingle();
+
+    if (error || !data) {
+      const stored = localStorage.getItem('vx_global_config');
+      return stored ? JSON.parse(stored) : fallback;
+    }
+
+    return {
+      bcvRate: parseFloat(data.bcv_rate || 65.50),
+      minPosVersion: data.min_pos_version || '1.0.0',
+      maintenanceMode: !!data.maintenance_mode,
+      maintenanceMessage: data.maintenance_message || fallback.maintenanceMessage,
+      updatedAt: data.updated_at || new Date().toISOString()
+    };
+  } catch {
+    return fallback;
+  }
+};
+
+/**
+ * Guarda la configuración global en Supabase y localmente
+ */
+export const saveGlobalConfig = async (config) => {
+  const payload = {
+    id: 1,
+    bcv_rate: parseFloat(config.bcvRate) || 65.50,
+    min_pos_version: config.minPosVersion || '1.0.0',
+    maintenance_mode: !!config.maintenanceMode,
+    maintenance_message: config.maintenanceMessage || 'Mantenimiento preventivo.',
+    updated_at: new Date().toISOString()
+  };
+
+  try {
+    localStorage.setItem('vx_global_config', JSON.stringify(config));
+  } catch (e) {
+    console.warn(e);
+  }
+
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    await supabase.from('global_config').upsert(payload);
+  }
+
+  // Registrar auditoría
+  await logAuditEvent({
+    actionType: 'CONFIG_GLOBAL_MODIFICADA',
+    description: `Tasa BCV: ${payload.bcv_rate} | Mantenimiento: ${payload.maintenance_mode ? 'ACTIVO' : 'INACTIVO'} | Versión Mínima: ${payload.min_pos_version}`
+  });
+
+  return { success: true };
+};
+
+/**
+ * 2. Bitácora de Auditoría SuperAdmin
+ */
+export const fetchAuditLogs = async (limit = 100) => {
+  const supabase = getSupabaseClient();
+  const localLogs = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('vx_audit_logs') || '[]');
+    } catch {
+      return [];
+    }
+  })();
+
+  if (!supabase) return localLogs;
+
+  try {
+    const { data, error } = await supabase
+      .from('audit_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error || !data) return localLogs;
+
+    return data.map(l => ({
+      id: l.id,
+      userName: l.user_name || 'Admin',
+      userRole: l.user_role || 'superadmin',
+      actionType: l.action_type || 'ACCION',
+      description: l.description || '',
+      targetBusiness: l.target_business || '',
+      metadata: l.metadata || null,
+      createdAt: l.created_at || new Date().toISOString()
+    }));
+  } catch {
+    return localLogs;
+  }
+};
+
+export const logAuditEvent = async ({
+  userName = 'Admin',
+  userRole = 'superadmin',
+  actionType = 'ACCION',
+  description = '',
+  targetBusiness = '',
+  metadata = null
+}) => {
+  const logEntry = {
+    id: Date.now().toString(),
+    user_name: userName,
+    user_role: userRole,
+    action_type: actionType,
+    description,
+    target_business: targetBusiness,
+    metadata,
+    created_at: new Date().toISOString()
+  };
+
+  // Guardar localmente
+  try {
+    const existing = JSON.parse(localStorage.getItem('vx_audit_logs') || '[]');
+    existing.unshift(logEntry);
+    localStorage.setItem('vx_audit_logs', JSON.stringify(existing.slice(0, 200)));
+  } catch (e) {
+    console.warn(e);
+  }
+
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      await supabase.from('audit_logs').insert(logEntry);
+    } catch {
+      // Silencioso si la tabla no existe aún
+    }
+  }
+};
+
+/**
+ * 3. Mesa de Ayuda y Tickets de Soporte
+ */
+export const fetchSupportTickets = async () => {
+  const supabase = getSupabaseClient();
+  const localTickets = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('vx_support_tickets') || '[]');
+    } catch {
+      return [];
+    }
+  })();
+
+  if (!supabase) return localTickets;
+
+  try {
+    const { data, error } = await supabase
+      .from('support_tickets')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error || !data) return localTickets;
+
+    return data.map(t => ({
+      id: t.id,
+      businessId: t.business_id,
+      licenseKey: t.license_key,
+      businessName: t.business_name,
+      contactPhone: t.contact_phone || '',
+      title: t.title,
+      description: t.description || '',
+      priority: t.priority || 'MEDIA',
+      status: t.status || 'ABIERTO',
+      assignedTo: t.assigned_to || 'Soporte',
+      resolutionNotes: t.resolution_notes || '',
+      createdAt: t.created_at,
+      resolvedAt: t.resolved_at
+    }));
+  } catch {
+    return localTickets;
+  }
+};
+
+export const createSupportTicket = async (ticketData) => {
+  const newTicket = {
+    business_id: ticketData.businessId || null,
+    license_key: ticketData.licenseKey || 'S/L',
+    business_name: ticketData.businessName || 'Comercio',
+    contact_phone: ticketData.contactPhone || '',
+    title: ticketData.title,
+    description: ticketData.description || '',
+    priority: ticketData.priority || 'MEDIA',
+    status: 'ABIERTO',
+    assigned_to: ticketData.assignedTo || 'Soporte',
+    created_at: new Date().toISOString()
+  };
+
+  // Local
+  try {
+    const existing = JSON.parse(localStorage.getItem('vx_support_tickets') || '[]');
+    existing.unshift({ id: Date.now(), ...newTicket });
+    localStorage.setItem('vx_support_tickets', JSON.stringify(existing));
+  } catch (e) {
+    console.warn(e);
+  }
+
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    const { data, error } = await supabase.from('support_tickets').insert(newTicket).select().single();
+    if (error) console.warn('Ticket error Supabase:', error);
+    return data;
+  }
+
+  return newTicket;
+};
+
+export const updateSupportTicketStatus = async (ticketId, { status, resolutionNotes, assignedTo }) => {
+  const updates = {
+    status,
+    resolution_notes: resolutionNotes,
+    assigned_to: assignedTo,
+    resolved_at: status === 'RESUELTO' ? new Date().toISOString() : null
+  };
+
+  // Local
+  try {
+    const existing = JSON.parse(localStorage.getItem('vx_support_tickets') || '[]');
+    const idx = existing.findIndex(t => t.id === ticketId || t.id === Number(ticketId));
+    if (idx !== -1) {
+      existing[idx] = { ...existing[idx], ...updates };
+      localStorage.setItem('vx_support_tickets', JSON.stringify(existing));
+    }
+  } catch (e) {
+    console.warn(e);
+  }
+
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    await supabase.from('support_tickets').update(updates).eq('id', ticketId);
+  }
+
+  return { success: true };
+};
+
+export const deleteSupportTicket = async (ticketId) => {
+  // Local
+  try {
+    const existing = JSON.parse(localStorage.getItem('vx_support_tickets') || '[]');
+    const filtered = existing.filter(t => t.id !== ticketId && t.id !== Number(ticketId));
+    localStorage.setItem('vx_support_tickets', JSON.stringify(filtered));
+  } catch (e) {
+    console.warn(e);
+  }
+
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    await supabase.from('support_tickets').delete().eq('id', ticketId);
+  }
+
+  return { success: true };
+};
+
+/**
+ * 4. Actualiza la configuración de módulos (Feature Flags) de un comercio
+ */
+export const updateBusinessModules = async (businessId, licenseKey, modulesConfig) => {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error('Supabase no configurado.');
+
+  const { error } = await supabase
+    .from('businesses')
+    .update({ 
+      modules_config: modulesConfig,
+      updated_at: new Date().toISOString()
+    })
+    .eq('license_key', licenseKey);
+
+  if (error) {
+    // Si la columna no existe aún
+    if (error.code === '42703' || error.message?.includes('modules_config')) {
+      throw new Error('La columna "modules_config" no existe en Supabase. Ejecuta el script SQL en "Configurar Supabase".');
+    }
+    throw new Error(`Error al guardar módulos: ${error.message}`);
+  }
+
+  await logAuditEvent({
+    actionType: 'MODULOS_ACTUALIZADOS',
+    description: `Configuración de módulos modificada para ${licenseKey}`,
+    targetBusiness: licenseKey,
+    metadata: modulesConfig
+  });
+
+  return { success: true };
+};
+
+/**
+ * 5. Actualiza el distribuidor / promotor asignado a un comercio
+ */
+export const updateBusinessDistributor = async (businessId, licenseKey, distributorName, distributorCommission) => {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error('Supabase no configurado.');
+
+  const { error } = await supabase
+    .from('businesses')
+    .update({
+      distributor_name: distributorName?.trim() || null,
+      distributor_commission: parseFloat(distributorCommission) || 0.00,
+      updated_at: new Date().toISOString()
+    })
+    .eq('license_key', licenseKey);
+
+  if (error) {
+    throw new Error(`Error al actualizar distribuidor: ${error.message}`);
+  }
+
+  await logAuditEvent({
+    actionType: 'DISTRIBUIDOR_ACTUALIZADO',
+    description: `Distribuidor "${distributorName}" asignado a ${licenseKey} (Comisión: $${distributorCommission})`,
+    targetBusiness: licenseKey
+  });
+
+  return { success: true };
+};
+
+/**
+ * 6. Portal de Pagos Express del Cliente & Aprobación por SuperAdmin
+ */
+export const submitClientExpressPayment = async ({
+  licenseKey,
+  businessName,
+  amountUsd,
+  amountVes,
+  paymentMethod,
+  referenceCode,
+  notes,
+  proofUrl
+}) => {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error('Supabase no está disponible.');
+
+  const parsedAmountUsd = parseFloat(amountUsd) || 0;
+  const parsedAmountVes = parseFloat(amountVes) || 0;
+
+  const paymentPayload = {
+    license_key: licenseKey,
+    amount_usd: parsedAmountUsd,
+    amount_ves: parsedAmountVes,
+    payment_method: paymentMethod || 'PAGO_MOVIL',
+    reference_code: referenceCode?.trim() || 'REF-EXPRESS',
+    receipt_number: `REC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random()*9000)}`,
+    status: 'PENDING_VERIFICATION',
+    proof_url: proofUrl || null,
+    payment_date: new Date().toISOString(),
+    notes: notes?.trim() || 'Reportado desde Portal Express de Cliente'
+  };
+
+  const { data, error } = await supabase.from('payments').insert(paymentPayload).select().single();
+  if (error) throw new Error(`Error al reportar pago: ${error.message}`);
+
+  return { success: true, payment: data };
+};
+
+/**
+ * Aprueba un pago reportado por el cliente
+ */
+export const approvePendingPayment = async (paymentId, businessId, licenseKey, extendDays = 30) => {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error('Supabase no configurado.');
+
+  const { error } = await supabase
+    .from('payments')
+    .update({ 
+      status: 'APPROVED',
+      period_extended_days: extendDays
+    })
+    .eq('id', paymentId);
+
+  if (error) throw new Error(`Error aprobando pago: ${error.message}`);
+
+  // Extender suscripción
+  if (licenseKey && extendDays > 0) {
+    await extendBusinessLicense(licenseKey, extendDays);
+  }
+
+  await logAuditEvent({
+    actionType: 'PAGO_APROBADO',
+    description: `Pago #${paymentId} aprobado con extensión de ${extendDays} días para ${licenseKey}`,
+    targetBusiness: licenseKey
+  });
+
+  return { success: true };
+};
+
+/**
+ * Rechaza un pago reportado
+ */
+export const rejectPendingPayment = async (paymentId, licenseKey, reason = '') => {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error('Supabase no configurado.');
+
+  const { error } = await supabase
+    .from('payments')
+    .update({ 
+      status: 'REJECTED',
+      notes: reason ? `RECHAZADO: ${reason}` : 'Pago rechazado por el administrador'
+    })
+    .eq('id', paymentId);
+
+  if (error) throw new Error(`Error rechazando pago: ${error.message}`);
+
+  await logAuditEvent({
+    actionType: 'PAGO_RECHAZADO',
+    description: `Pago #${paymentId} rechazado para ${licenseKey}. Motivo: ${reason}`,
+    targetBusiness: licenseKey
+  });
+
+  return { success: true };
+};
+
+/**
+ * 7. Telemetría global de todas las cajas POS
+ */
+export const fetchAllTelemetryDevices = async () => {
+  const supabase = getSupabaseClient();
+  if (!supabase) return [];
+
+  try {
+    const { data: devices, error } = await supabase
+      .from('pos_devices')
+      .select('*')
+      .order('last_seen_at', { ascending: false });
+
+    if (error || !devices) return [];
+
+    return devices.map(d => ({
+      id: d.id,
+      businessId: d.business_id,
+      licenseKey: d.license_key,
+      deviceId: d.device_id,
+      machineName: d.machine_name || 'Caja Registradora',
+      osInfo: d.os_info || 'Windows POS',
+      appVersion: d.app_version || '1.0.0',
+      lastSeenAt: d.last_seen_at || d.created_at
+    }));
+  } catch {
+    return [];
+  }
+};
+
 
