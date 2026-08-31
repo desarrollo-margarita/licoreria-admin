@@ -36,18 +36,18 @@ const testimonials = [
 
 export default function Testimonials() {
   return (
-    <section id="testimonios" className="w-full py-12 sm:py-14 px-6 sm:px-10 lg:px-16 xl:px-24 relative flex flex-col items-center justify-center">
+    <section id="testimonios" className="w-full py-6 sm:py-7 px-6 sm:px-10 lg:px-16 xl:px-24 relative flex flex-col items-center justify-center">
       {/* Background glow */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] bg-purple-600/10 blur-[150px] rounded-full pointer-events-none" />
 
       <div className="w-full max-w-[1500px] mx-auto relative z-10 flex flex-col items-center">
         
         {/* Centered Section Header */}
-        <div className="flex flex-col items-center justify-center text-center max-w-3xl mx-auto mb-12 space-y-4">
+        <div className="flex flex-col items-center justify-center text-center max-w-3xl mx-auto mb-6 space-y-3">
           <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-cyan-500/15 text-cyan-300 text-xs font-bold border border-cyan-500/30 mx-auto shadow-lg shadow-cyan-500/10">
             <ShieldCheck className="w-4 h-4 text-cyan-400" /> Casos de Éxito en Venezuela
           </div>
-          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-[42px] font-black text-white tracking-tight leading-tight text-center mt-3">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-[42px] font-black text-white tracking-tight leading-tight text-center mt-2">
             Comercios que Multiplicaron su <span className="bg-gradient-to-r from-sky-400 via-cyan-400 to-blue-500 bg-clip-text text-transparent">Velocidad</span>
           </h2>
           <p className="text-slate-300 text-base sm:text-lg max-w-2xl mx-auto text-center leading-relaxed">
@@ -56,7 +56,7 @@ export default function Testimonials() {
         </div>
 
         {/* Testimonials Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-10 lg:gap-12 w-full">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-6 w-full">
           {testimonials.map((t, idx) => (
             <div
               key={idx}

@@ -105,7 +105,7 @@ export default function InteractivePricing() {
   };
 
   return (
-    <section id="planes" className="w-full py-12 sm:py-14 px-6 sm:px-10 lg:px-16 xl:px-24 relative overflow-hidden flex flex-col items-center justify-center">
+    <section id="planes" className="w-full py-6 sm:py-7 px-6 sm:px-10 lg:px-16 xl:px-24 relative overflow-hidden flex flex-col items-center justify-center">
       {/* Background Glow */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-orange-500/8 blur-[160px] rounded-full pointer-events-none" />
       <div className="absolute bottom-0 right-1/4 w-[500px] h-[300px] bg-cyan-500/6 blur-[120px] rounded-full pointer-events-none" />
@@ -113,11 +113,11 @@ export default function InteractivePricing() {
       <div className="w-full max-w-[1500px] mx-auto relative z-10 flex flex-col items-center">
         
         {/* Centered Section Header */}
-        <div className="flex flex-col items-center justify-center text-center max-w-3xl mx-auto mb-12 space-y-4">
+        <div className="flex flex-col items-center justify-center text-center max-w-3xl mx-auto mb-6 space-y-3">
           <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-orange-500/10 text-orange-400 text-xs font-bold border border-orange-500/20 mx-auto shadow-lg shadow-orange-500/10">
             <Zap className="w-4 h-4" /> Precios Transparentes · Sin Comisiones Ocultas
           </div>
-          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-[42px] font-black text-white tracking-tight leading-tight text-center mt-3">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-[42px] font-black text-white tracking-tight leading-tight text-center mt-2">
             Elige el Plan que <span className="bg-gradient-to-r from-orange-400 via-pink-500 to-amber-400 bg-clip-text text-transparent">Impulse tu Negocio</span>
           </h2>
           <p className="text-slate-400 text-base sm:text-lg max-w-2xl mx-auto leading-relaxed text-center">
@@ -126,7 +126,7 @@ export default function InteractivePricing() {
         </div>
 
         {/* Pricing Cards Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 lg:gap-12 items-stretch mb-14 w-full">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-8 items-stretch mb-7 w-full">
           {plans.map((plan) => {
             const style = accentStyles[plan.accent];
             const Icon = plan.icon;

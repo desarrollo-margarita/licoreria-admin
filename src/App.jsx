@@ -71,7 +71,7 @@ function MainApp() {
       ) : (
         <div className="w-full min-h-screen text-slate-100 selection:bg-pink-500 selection:text-white font-sans flex flex-col items-center">
           <Navbar onOpenAdmin={handleOpenAdmin} />
-          <main className="w-full flex-1 flex flex-col items-center gap-14 sm:gap-18 lg:gap-24">
+          <main className="w-full flex-1 flex flex-col items-center gap-6 sm:gap-8 lg:gap-10">
             <HeroSection />
             <IndustriesSection />
             <FeatureGrid />

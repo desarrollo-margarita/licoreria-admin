@@ -7,11 +7,11 @@ export default function Footer({ onOpenAdmin }) {
   };
 
   return (
-    <footer className="w-full bg-slate-950 border-t border-white/[0.08] pt-12 pb-10 px-6 sm:px-10 lg:px-16 xl:px-24 relative flex flex-col items-center">
+    <footer className="w-full bg-slate-950 border-t border-white/[0.08] pt-8 pb-8 px-6 sm:px-10 lg:px-16 xl:px-24 relative flex flex-col items-center">
       {/* Brand line */}
       <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-purple-600 via-cyan-400 via-pink-500 to-orange-400 opacity-60 pointer-events-none" />
 
-      <div className="w-full max-w-[1500px] mx-auto space-y-12">
+      <div className="w-full max-w-[1500px] mx-auto space-y-8">
         
         <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
           {/* Brand Info */}

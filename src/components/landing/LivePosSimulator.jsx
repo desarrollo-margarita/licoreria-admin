@@ -105,15 +105,15 @@ VUELTO EN BS:     Bs. ${changeVes.toLocaleString('es-VE', { minimumFractionDigit
   };
 
   return (
-    <section id="simulador" className="w-full py-12 sm:py-14 px-6 sm:px-10 lg:px-16 xl:px-24 relative flex flex-col items-center justify-center">
+    <section id="simulador" className="w-full py-6 sm:py-7 px-6 sm:px-10 lg:px-16 xl:px-24 relative flex flex-col items-center justify-center">
       <div className="w-full max-w-[1500px] mx-auto flex flex-col items-center">
         
         {/* Centered Section Header with balanced breathing room after subtitle */}
-        <div className="flex flex-col items-center justify-center text-center max-w-3xl mx-auto mb-12 space-y-4">
+        <div className="flex flex-col items-center justify-center text-center max-w-3xl mx-auto mb-6 space-y-3">
           <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-cyan-500/15 text-cyan-300 text-xs font-bold border border-cyan-500/30 mx-auto shadow-lg shadow-cyan-500/10">
             <Calculator className="w-4 h-4 text-cyan-400" /> Demostración Interactiva en Vivo
           </div>
-          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-[42px] font-black text-white tracking-tight leading-tight text-center mt-3">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-[42px] font-black text-white tracking-tight leading-tight text-center mt-2">
             Prueba la Rapidez del <span className="bg-gradient-to-r from-sky-400 via-cyan-400 to-blue-500 bg-clip-text text-transparent">Cobro en VentroX</span>
           </h2>
           <p className="text-slate-300 text-base sm:text-lg max-w-2xl mx-auto text-center leading-relaxed">

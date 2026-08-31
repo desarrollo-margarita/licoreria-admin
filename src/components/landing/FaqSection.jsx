@@ -32,15 +32,15 @@ export default function FaqSection() {
   };
 
   return (
-    <section id="faq" className="w-full py-12 sm:py-14 px-6 sm:px-10 lg:px-16 xl:px-24 relative flex flex-col items-center justify-center">
+    <section id="faq" className="w-full py-6 sm:py-7 px-6 sm:px-10 lg:px-16 xl:px-24 relative flex flex-col items-center justify-center">
       <div className="w-full max-w-5xl mx-auto flex flex-col items-center">
         
         {/* Centered Section Header */}
-        <div className="flex flex-col items-center justify-center text-center max-w-3xl mx-auto mb-12 space-y-4">
+        <div className="flex flex-col items-center justify-center text-center max-w-3xl mx-auto mb-6 space-y-3">
           <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-purple-500/15 text-purple-300 text-xs font-bold border border-purple-500/30 mx-auto shadow-lg shadow-purple-500/10">
             <HelpCircle className="w-4 h-4 text-purple-400" /> Respuestas Claras y Directas
           </div>
-          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-[42px] font-black text-white tracking-tight leading-tight text-center mt-3">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-[42px] font-black text-white tracking-tight leading-tight text-center mt-2">
             Preguntas <span className="bg-gradient-to-r from-purple-500 via-pink-500 to-amber-400 bg-clip-text text-transparent">Frecuentes</span>
           </h2>
           <p className="text-slate-300 text-base sm:text-lg max-w-xl mx-auto text-center leading-relaxed">
@@ -49,7 +49,7 @@ export default function FaqSection() {
         </div>
 
         {/* Accordion List */}
-        <div className="space-y-6 w-full">
+        <div className="space-y-3.5 w-full">
           {faqs.map((faq, idx) => {
             const isOpen = openIdx === idx;
             return (
