@@ -1,0 +1,718 @@
+import { getSupabaseClient } from './supabaseClient';
+import { generateLicenseKey } from './licenseUtils';
+
+/**
+ * Obtiene todos los comercios y suscripciones directamente desde Supabase Cloud
+ */
+export const fetchAllBusinesses = async () => {
+  const supabase = getSupabaseClient();
+
+  if (!supabase) {
+    return {
+      source: 'unconfigured',
+      connected: false,
+      data: []
+    };
+  }
+
+  try {
+    const [bizsRes, subsRes, paysRes, devsRes] = await Promise.allSettled([
+      supabase.from('businesses').select('*').order('created_at', { ascending: false }),
+      supabase.from('subscriptions').select('*').order('created_at', { ascending: false }),
+      supabase.from('payments').select('*').order('payment_date', { ascending: false }),
+      supabase.from('pos_devices').select('*')
+    ]);
+
+    const bizsData = bizsRes.status === 'fulfilled' && bizsRes.value.data ? bizsRes.value.data : [];
+    const subsData = subsRes.status === 'fulfilled' && subsRes.value.data ? subsRes.value.data : [];
+    const paysData = paysRes.status === 'fulfilled' && paysRes.value.data ? paysRes.value.data : [];
+    const devsData = devsRes.status === 'fulfilled' && devsRes.value.data ? devsRes.value.data : [];
+
+    // Indexar suscripciones por business_id y license_key
+    const subsMap = {};
+    subsData.forEach(s => {
+      if (s.business_id) subsMap[s.business_id] = s;
+      if (s.license_key) subsMap[s.license_key] = s;
+      if (s.id) subsMap[s.id] = s;
+    });
+
+    // Indexar y calcular LTV de pagos por business_id y license_key
+    const ltvMap = {};
+    const paymentCountMap = {};
+    paysData.forEach(p => {
+      const keys = [p.business_id, p.license_key].filter(Boolean);
+      const amt = parseFloat(p.amount_usd || 0);
+      keys.forEach(k => {
+        ltvMap[k] = (ltvMap[k] || 0) + amt;
+        paymentCountMap[k] = (paymentCountMap[k] || 0) + 1;
+      });
+    });
+
+    // Indexar dispositivos conectados por license_key
+    const devicesCountMap = {};
+    devsData.forEach(d => {
+      if (d.license_key) {
+        devicesCountMap[d.license_key] = (devicesCountMap[d.license_key] || 0) + 1;
+      }
+    });
+
+    const processedIds = new Set();
+    const cloudList = [];
+
+    // Procesar negocios de Supabase
+    bizsData.forEach(biz => {
+      const sub = subsMap[biz.id] || subsMap[biz.license_key] || {};
+      if (sub.id) processedIds.add(sub.id);
+
+      const planType = sub.plan_type || biz.plan_type || biz.plan || 'ANUAL';
+      let defaultDays = 365;
+      if (planType === 'TRIENAL') defaultDays = 1095;
+      if (planType === 'MENSUAL') defaultDays = 30;
+      if (planType === 'DEMO') defaultDays = 15;
+
+      const defaultExp = new Date(new Date(biz.created_at || Date.now()).getTime() + defaultDays * 24 * 60 * 60 * 1000);
+      const licenseKey = biz.license_key || biz.license || sub.license_key || `VX-${(biz.id || 'DEMO').toString().slice(0, 8).toUpperCase()}`;
+
+      const ltv = ltvMap[biz.id] || ltvMap[licenseKey] || 0;
+      const paymentsCount = paymentCountMap[biz.id] || paymentCountMap[licenseKey] || 0;
+      const connectedDevices = devicesCountMap[licenseKey] || 0;
+
+      cloudList.push({
+        id: biz.id || sub.id || Math.random().toString(),
+        businessId: biz.id,
+        licenseKey,
+        businessName: biz.name || biz.business_name || biz.nombre || 'Comercio Registrado',
+        rifDoc: biz.rif_doc || biz.rif || biz.documento || 'J-00000000-0',
+        phone: biz.phone || biz.telefono || sub.phone || '',
+        email: biz.email || biz.correo || sub.email || '',
+        contactPerson: biz.contact_person || biz.contacto || '',
+        planType,
+        status: sub.status || biz.status || (biz.is_active === 0 ? 'SUSPENDIDA' : 'ACTIVA'),
+        monthlyFeeUsd: parseFloat(sub.monthly_fee_usd || biz.monthly_fee_usd || (planType === 'TRIENAL' ? 150 : planType === 'ANUAL' ? 80 : 12)),
+        maxBoxes: parseInt(sub.max_boxes || biz.max_boxes || (planType === 'TRIENAL' ? 3 : planType === 'ANUAL' ? 2 : 1)),
+        connectedDevices,
+        ltvUsd: ltv,
+        paymentsCount,
+        expirationDate: sub.expiration_date ? new Date(sub.expiration_date).toISOString() : biz.expiration_date ? new Date(biz.expiration_date).toISOString() : defaultExp.toISOString(),
+        startDate: sub.start_date ? new Date(sub.start_date).toISOString() : new Date(biz.created_at || Date.now()).toISOString(),
+        notes: sub.notes || biz.notes || ''
+      });
+    });
+
+    // Añadir suscripciones huérfanas si las hubiera
+    subsData.forEach(sub => {
+      if (!processedIds.has(sub.id)) {
+        const licenseKey = sub.license_key || 'VX-PRO-0000';
+        const ltv = ltvMap[sub.business_id] || ltvMap[licenseKey] || 0;
+        const paymentsCount = paymentCountMap[sub.business_id] || paymentCountMap[licenseKey] || 0;
+        const connectedDevices = devicesCountMap[licenseKey] || 0;
+
+        cloudList.push({
+          id: sub.id,
+          businessId: sub.business_id,
+          licenseKey,
+          businessName: sub.business_name || sub.notes || 'Comercio Suscrito',
+          rifDoc: sub.rif_doc || 'J-00000000-0',
+          phone: sub.phone || '',
+          email: sub.email || '',
+          contactPerson: '',
+          planType: sub.plan_type || 'ANUAL',
+          status: sub.status || 'ACTIVA',
+          monthlyFeeUsd: parseFloat(sub.monthly_fee_usd || 80),
+          maxBoxes: parseInt(sub.max_boxes || 2),
+          connectedDevices,
+          ltvUsd: ltv,
+          paymentsCount,
+          expirationDate: sub.expiration_date ? new Date(sub.expiration_date).toISOString() : new Date(Date.now() + 365*24*60*60*1000).toISOString(),
+          startDate: sub.start_date ? new Date(sub.start_date).toISOString() : new Date().toISOString(),
+          notes: sub.notes || ''
+        });
+      }
+    });
+
+    return {
+      source: 'supabase',
+      connected: true,
+      data: cloudList,
+      totalRevenueCollected: paysData.reduce((acc, p) => acc + (parseFloat(p.amount_usd) || 0), 0)
+    };
+  } catch (err) {
+    console.warn('Error consultando Supabase:', err);
+    return {
+      source: 'error',
+      connected: false,
+      data: [],
+      totalRevenueCollected: 0
+    };
+  }
+};
+
+/**
+ * Registra un nuevo comercio directamente en Supabase Nube
+ */
+export const registerBusiness = async ({
+  name,
+  rif,
+  phone,
+  contact,
+  email,
+  planType,
+  fee,
+  boxes,
+  notes
+}) => {
+  const trimmedName = name?.trim() || '';
+  const trimmedRif = rif?.trim().toUpperCase() || '';
+
+  if (!trimmedName) {
+    throw new Error('El nombre del comercio es obligatorio.');
+  }
+  if (!trimmedRif) {
+    throw new Error('El RIF o documento fiscal es obligatorio.');
+  }
+
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    throw new Error('No hay conexión con Supabase configurada. Por favor ve a "Configurar Supabase" e ingresa la URL y la Anon Key de tu proyecto.');
+  }
+
+  // 1. Validar que el RIF sea único en la base de datos
+  const { data: existingBiz, error: checkErr } = await supabase
+    .from('businesses')
+    .select('id, name')
+    .eq('rif_doc', trimmedRif)
+    .maybeSingle();
+
+  if (!checkErr && existingBiz) {
+    throw new Error(`Ya existe un comercio registrado con el RIF "${trimmedRif}" (${existingBiz.name}). Utiliza un RIF único.`);
+  }
+
+  const licenseKey = generateLicenseKey();
+  
+  let days = 365;
+  if (planType === 'TRIENAL') days = 1095;
+  if (planType === 'MENSUAL') days = 30;
+  if (planType === 'DEMO') days = 15;
+
+  const startDate = new Date();
+  const expDate = new Date();
+  expDate.setDate(expDate.getDate() + days);
+
+  const parsedFee = parseFloat(fee);
+  const monthlyFeeUsd = !isNaN(parsedFee) && parsedFee >= 0 
+    ? parsedFee 
+    : (planType === 'TRIENAL' ? 150 : planType === 'ANUAL' ? 80 : planType === 'MENSUAL' ? 12 : 0);
+
+  const maxBoxes = Math.max(1, parseInt(boxes, 10) || 1);
+
+  // 2. Inserción en la tabla 'businesses'
+  const { data: bizData, error: bizErr } = await supabase
+    .from('businesses')
+    .insert({
+      name: trimmedName,
+      rif_doc: trimmedRif,
+      phone: phone?.trim() || null,
+      email: email?.trim() || null,
+      contact_person: contact?.trim() || null,
+      license_key: licenseKey,
+      is_active: 1
+    })
+    .select()
+    .single();
+
+  if (bizErr) {
+    if (bizErr.code === '23505' || bizErr.message?.includes('duplicate key') || bizErr.message?.includes('unique constraint')) {
+      throw new Error(`Ya existe un comercio registrado con el RIF "${trimmedRif}". Por favor utiliza un RIF diferente.`);
+    }
+    if (bizErr.code === '42501' || bizErr.message?.includes('row-level security')) {
+      throw new Error(`Permiso denegado por RLS en Supabase (tabla 'businesses'). Asegúrate de deshabilitar RLS ejecutando el script SQL en Supabase.`);
+    }
+    if (bizErr.code === '42P01' || bizErr.message?.includes('does not exist')) {
+      throw new Error(`Las tablas en Supabase no existen. Abre 'Configurar Supabase' y ejecuta el script SQL en el SQL Editor.`);
+    }
+    throw new Error(`Error al registrar comercio en Supabase: ${bizErr.message}`);
+  }
+
+  // 3. Inserción en la tabla 'subscriptions'
+  const subPayload = {
+    business_id: bizData.id,
+    license_key: licenseKey,
+    plan_type: planType || 'ANUAL',
+    status: 'ACTIVA',
+    monthly_fee_usd: monthlyFeeUsd,
+    max_boxes: maxBoxes,
+    start_date: startDate.toISOString(),
+    expiration_date: expDate.toISOString(),
+    last_verified_at: startDate.toISOString(),
+    notes: notes?.trim() || null
+  };
+
+  const { data: subData, error: subErr } = await supabase
+    .from('subscriptions')
+    .insert(subPayload)
+    .select()
+    .single();
+
+  if (subErr) {
+    // Revertir inserción del negocio para evitar inconsistencias
+    await supabase.from('businesses').delete().eq('id', bizData.id);
+    throw new Error(`Error al registrar la suscripción en Supabase: ${subErr.message}`);
+  }
+
+  const newRecord = {
+    id: bizData.id,
+    licenseKey,
+    businessName: trimmedName,
+    rifDoc: trimmedRif,
+    phone: phone?.trim() || '',
+    email: email?.trim() || '',
+    contactPerson: contact?.trim() || '',
+    planType: planType || 'ANUAL',
+    status: 'ACTIVA',
+    monthlyFeeUsd,
+    maxBoxes,
+    expirationDate: expDate.toISOString(),
+    startDate: startDate.toISOString(),
+    notes: notes?.trim() || ''
+  };
+
+  return {
+    success: true,
+    licenseKey,
+    record: newRecord,
+    supabaseSynced: true
+  };
+};
+
+/**
+ * Extiende la vigencia de una licencia (+30d o +365d) directamente en Supabase
+ */
+export const extendBusinessLicense = async (licenseKey, extraDays) => {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    throw new Error('Supabase no está configurado o conectado.');
+  }
+
+  const { data, error: fetchErr } = await supabase
+    .from('subscriptions')
+    .select('expiration_date')
+    .eq('license_key', licenseKey)
+    .maybeSingle();
+
+  if (fetchErr || !data) {
+    throw new Error(`No se encontró la licencia "${licenseKey}" en Supabase.`);
+  }
+
+  const currentExp = data.expiration_date ? new Date(data.expiration_date) : new Date();
+  const baseDate = currentExp < new Date() ? new Date() : currentExp;
+  baseDate.setDate(baseDate.getDate() + extraDays);
+
+  const { error: updateErr } = await supabase
+    .from('subscriptions')
+    .update({
+      expiration_date: baseDate.toISOString(),
+      status: 'ACTIVA',
+      updated_at: new Date().toISOString()
+    })
+    .eq('license_key', licenseKey);
+
+  if (updateErr) {
+    throw new Error(`Error al extender licencia en Supabase: ${updateErr.message}`);
+  }
+
+  return { success: true, newExpirationDate: baseDate };
+};
+
+/**
+ * Cambia el plan único de un comercio directamente en Supabase
+ */
+export const changeBusinessPlan = async (licenseKey, newPlanType) => {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    throw new Error('Supabase no está configurado o conectado.');
+  }
+
+  let fee = 80.00;
+  let boxes = 2;
+  let days = 365;
+
+  if (newPlanType === 'TRIENAL') {
+    fee = 150.00;
+    boxes = 3;
+    days = 1095;
+  } else if (newPlanType === 'MENSUAL') {
+    fee = 12.00;
+    boxes = 1;
+    days = 30;
+  } else if (newPlanType === 'DEMO') {
+    fee = 0.00;
+    boxes = 1;
+    days = 15;
+  } else if (newPlanType === 'ANUAL') {
+    fee = 80.00;
+    boxes = 2;
+    days = 365;
+  }
+
+  const expDate = new Date();
+  expDate.setDate(expDate.getDate() + days);
+
+  const { error: subErr } = await supabase
+    .from('subscriptions')
+    .update({
+      plan_type: newPlanType,
+      monthly_fee_usd: fee,
+      max_boxes: boxes,
+      status: 'ACTIVA',
+      expiration_date: expDate.toISOString(),
+      updated_at: new Date().toISOString()
+    })
+    .eq('license_key', licenseKey);
+
+  if (subErr) {
+    throw new Error(`Error al cambiar plan en Supabase: ${subErr.message}`);
+  }
+
+  await supabase
+    .from('businesses')
+    .update({
+      is_active: 1,
+      updated_at: new Date().toISOString()
+    })
+    .eq('license_key', licenseKey);
+
+  return { success: true, newPlanType, fee, boxes, expirationDate: expDate };
+};
+
+/**
+ * Suspende o reactiva un comercio directamente en Supabase
+ */
+export const toggleBusinessStatusInStorage = async (licenseKey, currentStatus) => {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    throw new Error('Supabase no está configurado o conectado.');
+  }
+
+  const newStatus = currentStatus === 'SUSPENDIDA' ? 'ACTIVA' : 'SUSPENDIDA';
+
+  const { error: subErr } = await supabase
+    .from('subscriptions')
+    .update({
+      status: newStatus,
+      updated_at: new Date().toISOString()
+    })
+    .eq('license_key', licenseKey);
+
+  if (subErr) {
+    throw new Error(`Error al cambiar estado en Supabase: ${subErr.message}`);
+  }
+
+  await supabase
+    .from('businesses')
+    .update({
+      is_active: newStatus === 'ACTIVA' ? 1 : 0,
+      updated_at: new Date().toISOString()
+    })
+    .eq('license_key', licenseKey);
+
+  return { success: true, newStatus };
+};
+
+/**
+ * Actualiza la información completa de un comercio directamente en Supabase
+ */
+export const updateBusinessInfo = async (licenseKey, updatedData) => {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    throw new Error('Supabase no está configurado o conectado.');
+  }
+
+  const name = updatedData.businessName?.trim() || '';
+  const rif = updatedData.rifDoc?.trim().toUpperCase() || '';
+  const phone = updatedData.phone?.trim() || null;
+  const email = updatedData.email?.trim() || null;
+  const contact = updatedData.contactPerson?.trim() || null;
+  const maxBoxes = Math.max(1, parseInt(updatedData.maxBoxes, 10) || 1);
+  const fee = parseFloat(updatedData.monthlyFeeUsd) || 80.00;
+  const notes = updatedData.notes?.trim() || null;
+
+  // Buscar ID del negocio
+  const { data: subData } = await supabase
+    .from('subscriptions')
+    .select('business_id, id')
+    .eq('license_key', licenseKey)
+    .maybeSingle();
+
+  if (subData?.business_id) {
+    const { error: bizErr } = await supabase
+      .from('businesses')
+      .update({
+        name: name || undefined,
+        rif_doc: rif || undefined,
+        phone,
+        email,
+        contact_person: contact,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', subData.business_id);
+
+    if (bizErr) throw new Error(`Error al actualizar datos del comercio: ${bizErr.message}`);
+  } else {
+    const { error: bizErr } = await supabase
+      .from('businesses')
+      .update({
+        name: name || undefined,
+        rif_doc: rif || undefined,
+        phone,
+        email,
+        contact_person: contact,
+        updated_at: new Date().toISOString()
+      })
+      .eq('license_key', licenseKey);
+
+    if (bizErr) throw new Error(`Error al actualizar datos del comercio: ${bizErr.message}`);
+  }
+
+  const { error: subErr } = await supabase
+    .from('subscriptions')
+    .update({
+      max_boxes: maxBoxes,
+      monthly_fee_usd: fee,
+      notes,
+      updated_at: new Date().toISOString()
+    })
+    .eq('license_key', licenseKey);
+
+  if (subErr) throw new Error(`Error al actualizar suscripción: ${subErr.message}`);
+
+  return { success: true };
+};
+
+/**
+ * Registra un cobro/pago recibido directamente en Supabase
+ * y opcionalmente extiende la suscripción de forma automática
+ */
+export const recordPayment = async ({
+  businessId,
+  licenseKey,
+  amountUsd,
+  amountVes,
+  paymentMethod,
+  referenceCode,
+  paymentDate,
+  extendDays = 0,
+  notes = ''
+}) => {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    throw new Error('Supabase no está configurado o conectado.');
+  }
+
+  const parsedAmountUsd = parseFloat(amountUsd) || 0;
+  const parsedAmountVes = parseFloat(amountVes) || 0;
+  const parsedExtendDays = parseInt(extendDays, 10) || 0;
+
+  if (parsedAmountUsd <= 0 && parsedAmountVes <= 0) {
+    throw new Error('El monto pagado debe ser mayor a 0.');
+  }
+
+  // 1. Obtener business_id si no vino
+  let targetBizId = businessId;
+  if (!targetBizId && licenseKey) {
+    const { data: subData } = await supabase
+      .from('subscriptions')
+      .select('business_id')
+      .eq('license_key', licenseKey)
+      .maybeSingle();
+    targetBizId = subData?.business_id || null;
+  }
+
+  // 2. Insertar en tabla payments
+  const paymentPayload = {
+    business_id: targetBizId,
+    license_key: licenseKey,
+    amount_usd: parsedAmountUsd,
+    amount_ves: parsedAmountVes,
+    payment_method: paymentMethod || 'ZELLE',
+    reference_code: referenceCode?.trim() || null,
+    payment_date: paymentDate ? new Date(paymentDate).toISOString() : new Date().toISOString(),
+    period_extended_days: parsedExtendDays,
+    notes: notes?.trim() || null
+  };
+
+  const { data: payData, error: payErr } = await supabase
+    .from('payments')
+    .insert(paymentPayload)
+    .select()
+    .single();
+
+  if (payErr) {
+    if (payErr.code === '42P01' || payErr.message?.includes('does not exist')) {
+      throw new Error('La tabla "payments" no existe en Supabase. Abre "Configurar Supabase" y vuelve a ejecutar el script SQL actualizado.');
+    }
+    throw new Error(`Error al registrar el pago en Supabase: ${payErr.message}`);
+  }
+
+  // 3. Si se especificó extensión de vigencia, extender la suscripción
+  if (parsedExtendDays > 0 && licenseKey) {
+    await extendBusinessLicense(licenseKey, parsedExtendDays);
+  }
+
+  return { success: true, payment: payData };
+};
+
+/**
+ * Obtiene el historial de pagos de un comercio específico
+ */
+export const fetchBusinessPayments = async (licenseKey, businessId) => {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    return { success: false, data: [], error: 'Supabase no está conectado o configurado.' };
+  }
+
+  try {
+    let query = supabase.from('payments').select('*');
+    
+    if (licenseKey && businessId) {
+      query = query.or(`license_key.eq."${licenseKey}",business_id.eq.${businessId}`);
+    } else if (licenseKey) {
+      query = query.eq('license_key', licenseKey);
+    } else if (businessId) {
+      query = query.eq('business_id', businessId);
+    }
+
+    query = query.order('created_at', { ascending: false });
+
+    const { data, error } = await query;
+
+    if (error) {
+      // Si la tabla payments no existe en Supabase todavía
+      if (
+        error.code === '42P01' || 
+        error.code === 'PGRST204' ||
+        error.code === 'PGRST205' ||
+        error.message?.toLowerCase().includes('does not exist') ||
+        error.message?.toLowerCase().includes('relation "public.payments"')
+      ) {
+        return { 
+          success: true, 
+          data: [], 
+          tableMissing: true, 
+          message: 'La tabla "payments" aún no ha sido creada en tu Supabase.' 
+        };
+      }
+      return { success: false, data: [], error: error.message };
+    }
+
+    return { success: true, data: data || [], tableMissing: false };
+  } catch (err) {
+    console.warn('Error consultando historial de pagos:', err);
+    return { success: false, data: [], error: err.message };
+  }
+};
+
+/**
+ * Elimina un registro de pago específico
+ */
+export const deletePayment = async (paymentId) => {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error('Supabase no conectado.');
+
+  const { error } = await supabase
+    .from('payments')
+    .delete()
+    .eq('id', paymentId);
+
+  if (error) throw new Error(`Error al eliminar pago: ${error.message}`);
+  return { success: true };
+};
+
+/**
+ * Resetea y libera las cajas/dispositivos registrados para una licencia
+ */
+export const resetBusinessDevices = async (licenseKey) => {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error('Supabase no conectado.');
+
+  try {
+    const { error } = await supabase
+      .from('pos_devices')
+      .delete()
+      .eq('license_key', licenseKey);
+
+    if (error && error.code !== '42P01') {
+      throw error;
+    }
+
+    return { success: true };
+  } catch (err) {
+    throw new Error(`Error al liberar cajas: ${err.message}`);
+  }
+};
+
+/**
+ * Exporta la lista de comercios a formato CSV con formato compatible para Excel
+ */
+export const exportBusinessesToCsv = (businesses = []) => {
+  if (!businesses || businesses.length === 0) {
+    throw new Error('No hay datos para exportar.');
+  }
+
+  const headers = [
+    'Comercio / Negocio',
+    'RIF / Documento',
+    'Persona de Contacto',
+    'Telefono',
+    'Correo Electronico',
+    'Clave de Licencia',
+    'Plan Comercial',
+    'Estado',
+    'Cajas Autorizadas',
+    'Tarifa USD',
+    'Total Pagado LTV (USD)',
+    'Fecha de Registro',
+    'Fecha de Vencimiento',
+    'Dias Restantes',
+    'Notas'
+  ];
+
+  const rows = businesses.map(b => {
+    const expDate = new Date(b.expirationDate);
+    const now = new Date();
+    const daysLeft = Math.ceil((expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    
+    return [
+      `"${(b.businessName || '').replace(/"/g, '""')}"`,
+      `"${(b.rifDoc || '').replace(/"/g, '""')}"`,
+      `"${(b.contactPerson || '').replace(/"/g, '""')}"`,
+      `"${(b.phone || '').replace(/"/g, '""')}"`,
+      `"${(b.email || '').replace(/"/g, '""')}"`,
+      `"${(b.licenseKey || '').replace(/"/g, '""')}"`,
+      `"${b.planType || ''}"`,
+      `"${b.status || ''}"`,
+      b.maxBoxes || 1,
+      parseFloat(b.monthlyFeeUsd || 0).toFixed(2),
+      parseFloat(b.ltvUsd || 0).toFixed(2),
+      `"${b.startDate ? new Date(b.startDate).toLocaleDateString() : ''}"`,
+      `"${expDate.toLocaleDateString()}"`,
+      daysLeft,
+      `"${(b.notes || '').replace(/"/g, '""')}"`
+    ];
+  });
+
+  const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  
+  const link = document.createElement('a');
+  const timestamp = new Date().toISOString().split('T')[0];
+  link.setAttribute('href', url);
+  link.setAttribute('download', `VentroX_Clientes_${timestamp}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+
+  return true;
+};
+

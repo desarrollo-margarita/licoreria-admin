@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: #0b051d;
+    background-image: 
+      radial-gradient(circle at 50% 0%, rgba(98, 9, 255, 0.22) 0%, transparent 45%),
+      radial-gradient(circle at 15% 18%, rgba(255, 122, 0, 0.12) 0%, transparent 40%),
+      radial-gradient(circle at 85% 35%, rgba(253, 56, 190, 0.14) 0%, transparent 45%),
+      radial-gradient(circle at 15% 55%, rgba(0, 210, 255, 0.12) 0%, transparent 40%),
+      radial-gradient(circle at 85% 75%, rgba(98, 9, 255, 0.16) 0%, transparent 45%),
+      radial-gradient(circle at 50% 95%, rgba(255, 122, 0, 0.12) 0%, transparent 40%);
+    background-attachment: fixed;
+    color: #f1edfc;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+}
