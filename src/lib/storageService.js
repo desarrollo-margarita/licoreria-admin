@@ -1,13 +1,12 @@
-import { getSupabaseClient, getNodeClient, createDirectClient } from './supabaseClient';
+import { getSupabaseClient, getNodeClient, getAllNodes, createDirectClient } from './supabaseClient';
 import { generateLicenseKey } from './licenseUtils';
 
 /**
- * Obtiene todos los comercios y suscripciones directamente desde Supabase Cloud
+ * Obtiene todos los comercios y suscripciones directamente desde todos los Nodos / Clústeres de Supabase
  */
 export const fetchAllBusinesses = async () => {
-  const supabase = getSupabaseClient();
-
-  if (!supabase) {
+  const nodes = getAllNodes();
+  if (!nodes || nodes.length === 0) {
     return {
       source: 'unconfigured',
       connected: false,
@@ -15,154 +14,166 @@ export const fetchAllBusinesses = async () => {
     };
   }
 
-  try {
-    const [bizsRes, subsRes, paysRes, devsRes] = await Promise.allSettled([
-      supabase.from('businesses').select('*').order('created_at', { ascending: false }),
-      supabase.from('subscriptions').select('*').order('created_at', { ascending: false }),
-      supabase.from('payments').select('*').order('payment_date', { ascending: false }),
-      supabase.from('pos_devices').select('*')
-    ]);
+  const cloudList = [];
+  let totalRevenue = 0;
+  let hasSuccessfulConnection = false;
 
-    const bizsData = bizsRes.status === 'fulfilled' && bizsRes.value.data ? bizsRes.value.data : [];
-    const subsData = subsRes.status === 'fulfilled' && subsRes.value.data ? subsRes.value.data : [];
-    const paysData = paysRes.status === 'fulfilled' && paysRes.value.data ? paysRes.value.data : [];
-    const devsData = devsRes.status === 'fulfilled' && devsRes.value.data ? devsRes.value.data : [];
+  for (const node of nodes) {
+    const supabase = getNodeClient(node.id);
+    if (!supabase) continue;
 
-    // Indexar suscripciones por business_id y license_key
-    const subsMap = {};
-    subsData.forEach(s => {
-      if (s.business_id) subsMap[s.business_id] = s;
-      if (s.license_key) subsMap[s.license_key] = s;
-      if (s.id) subsMap[s.id] = s;
-    });
+    try {
+      const [bizsRes, subsRes, paysRes, devsRes] = await Promise.allSettled([
+        supabase.from('businesses').select('*').order('created_at', { ascending: false }),
+        supabase.from('subscriptions').select('*').order('created_at', { ascending: false }),
+        supabase.from('payments').select('*').order('payment_date', { ascending: false }),
+        supabase.from('pos_devices').select('*')
+      ]);
 
-    // Indexar y calcular LTV de pagos por business_id y license_key
-    const ltvMap = {};
-    const paymentCountMap = {};
-    paysData.forEach(p => {
-      const keys = [p.business_id, p.license_key].filter(Boolean);
-      const amt = parseFloat(p.amount_usd || 0);
-      keys.forEach(k => {
-        ltvMap[k] = (ltvMap[k] || 0) + amt;
-        paymentCountMap[k] = (paymentCountMap[k] || 0) + 1;
-      });
-    });
+      const bizsData = bizsRes.status === 'fulfilled' && bizsRes.value.data ? bizsRes.value.data : [];
+      const subsData = subsRes.status === 'fulfilled' && subsRes.value.data ? subsRes.value.data : [];
+      const paysData = paysRes.status === 'fulfilled' && paysRes.value.data ? paysRes.value.data : [];
+      const devsData = devsRes.status === 'fulfilled' && devsRes.value.data ? devsRes.value.data : [];
 
-    // Indexar dispositivos conectados por license_key
-    const devicesCountMap = {};
-    devsData.forEach(d => {
-      if (d.license_key) {
-        devicesCountMap[d.license_key] = (devicesCountMap[d.license_key] || 0) + 1;
+      if (bizsRes.status === 'fulfilled' || subsRes.status === 'fulfilled') {
+        hasSuccessfulConnection = true;
       }
-    });
 
-    const processedIds = new Set();
-    const cloudList = [];
-
-    // Procesar negocios de Supabase
-    bizsData.forEach(biz => {
-      const sub = subsMap[biz.id] || subsMap[biz.license_key] || {};
-      if (sub.id) processedIds.add(sub.id);
-
-      const planType = sub.plan_type || biz.plan_type || biz.plan || 'ANUAL';
-      let defaultDays = 365;
-      if (planType === 'TRIENAL') defaultDays = 1095;
-      if (planType === 'MENSUAL') defaultDays = 365;
-      if (planType === 'DEMO') defaultDays = 15;
-
-      const defaultExp = new Date(new Date(biz.created_at || Date.now()).getTime() + defaultDays * 24 * 60 * 60 * 1000);
-      const licenseKey = biz.license_key || biz.license || sub.license_key || `VX-${(biz.id || 'DEMO').toString().slice(0, 8).toUpperCase()}`;
-
-      const ltv = ltvMap[biz.id] || ltvMap[licenseKey] || 0;
-      const paymentsCount = paymentCountMap[biz.id] || paymentCountMap[licenseKey] || 0;
-      const connectedDevices = devicesCountMap[licenseKey] || 0;
-
-      const defaultModules = {
-        cashea: true,
-        fiscal_printer: true,
-        multi_warehouse: true,
-        kardex: true,
-        restaurant_tables: false,
-        pdf_reports: true,
-        whatsapp_receipts: true
-      };
-
-      cloudList.push({
-        id: biz.id || sub.id || Math.random().toString(),
-        businessId: biz.id,
-        licenseKey,
-        businessName: biz.name || biz.business_name || biz.nombre || 'Comercio Registrado',
-        rifDoc: biz.rif_doc || biz.rif || biz.documento || 'J-00000000-0',
-        phone: biz.phone || biz.telefono || sub.phone || '',
-        email: biz.email || biz.correo || sub.email || '',
-        contactPerson: biz.contact_person || biz.contacto || '',
-        planType,
-        nodeId: biz.node_id || 'node-default',
-        status: sub.status || biz.status || (biz.is_active === 0 ? 'SUSPENDIDA' : 'ACTIVA'),
-        monthlyFeeUsd: parseFloat(sub.monthly_fee_usd || biz.monthly_fee_usd || (planType === 'TRIENAL' ? 150 : planType === 'ANUAL' ? 80 : 50)),
-        maxBoxes: parseInt(sub.max_boxes || biz.max_boxes || (planType === 'TRIENAL' ? 3 : planType === 'ANUAL' ? 2 : 1)),
-        connectedDevices,
-        ltvUsd: ltv,
-        paymentsCount,
-        distributorName: biz.distributor_name || '',
-        distributorCommission: parseFloat(biz.distributor_commission || 0),
-        modulesConfig: biz.modules_config ? { ...defaultModules, ...(typeof biz.modules_config === 'string' ? JSON.parse(biz.modules_config) : biz.modules_config) } : defaultModules,
-        expirationDate: sub.expiration_date ? new Date(sub.expiration_date).toISOString() : biz.expiration_date ? new Date(biz.expiration_date).toISOString() : defaultExp.toISOString(),
-        startDate: sub.start_date ? new Date(sub.start_date).toISOString() : new Date(biz.created_at || Date.now()).toISOString(),
-        notes: sub.notes || biz.notes || ''
+      // Indexar suscripciones por business_id y license_key
+      const subsMap = {};
+      subsData.forEach(s => {
+        if (s.business_id) subsMap[s.business_id] = s;
+        if (s.license_key) subsMap[s.license_key] = s;
+        if (s.id) subsMap[s.id] = s;
       });
-    });
 
-    // Añadir suscripciones huérfanas si las hubiera
-    subsData.forEach(sub => {
-      if (!processedIds.has(sub.id)) {
-        const licenseKey = sub.license_key || 'VX-PRO-0000';
-        const ltv = ltvMap[sub.business_id] || ltvMap[licenseKey] || 0;
-        const paymentsCount = paymentCountMap[sub.business_id] || paymentCountMap[licenseKey] || 0;
+      // Indexar y calcular LTV de pagos por business_id y license_key
+      const ltvMap = {};
+      const paymentCountMap = {};
+      paysData.forEach(p => {
+        const keys = [p.business_id, p.license_key].filter(Boolean);
+        const amt = parseFloat(p.amount_usd || 0);
+        totalRevenue += amt;
+        keys.forEach(k => {
+          ltvMap[k] = (ltvMap[k] || 0) + amt;
+          paymentCountMap[k] = (paymentCountMap[k] || 0) + 1;
+        });
+      });
+
+      // Indexar dispositivos conectados por license_key
+      const devicesCountMap = {};
+      devsData.forEach(d => {
+        if (d.license_key) {
+          devicesCountMap[d.license_key] = (devicesCountMap[d.license_key] || 0) + 1;
+        }
+      });
+
+      const processedIds = new Set();
+
+      // Procesar negocios de este nodo
+      bizsData.forEach(biz => {
+        const sub = subsMap[biz.id] || subsMap[biz.license_key] || {};
+        if (sub.id) processedIds.add(sub.id);
+
+        const planType = sub.plan_type || biz.plan_type || biz.plan || (node.id === 'node-demos' ? 'DEMO' : 'ANUAL');
+        let defaultDays = 365;
+        if (planType === 'TRIENAL') defaultDays = 1095;
+        if (planType === 'MENSUAL') defaultDays = 365;
+        if (planType === 'DEMO') defaultDays = 15;
+
+        const defaultExp = new Date(new Date(biz.created_at || Date.now()).getTime() + defaultDays * 24 * 60 * 60 * 1000);
+        const licenseKey = biz.license_key || biz.license || sub.license_key || `VX-${(biz.id || 'DEMO').toString().slice(0, 8).toUpperCase()}`;
+
+        const ltv = ltvMap[biz.id] || ltvMap[licenseKey] || 0;
+        const paymentsCount = paymentCountMap[biz.id] || paymentCountMap[licenseKey] || 0;
         const connectedDevices = devicesCountMap[licenseKey] || 0;
 
+        const defaultModules = {
+          cashea: true,
+          fiscal_printer: true,
+          multi_warehouse: true,
+          kardex: true,
+          restaurant_tables: false,
+          pdf_reports: true,
+          whatsapp_receipts: true
+        };
+
+        const resolvedNodeId = biz.node_id || node.id || 'node-default';
+
         cloudList.push({
-          id: sub.id,
-          businessId: sub.business_id,
+          id: `${node.id}_${biz.id || sub.id || Math.random()}`,
+          businessId: biz.id,
           licenseKey,
-          businessName: sub.business_name || sub.notes || 'Comercio Suscrito',
-          rifDoc: sub.rif_doc || 'J-00000000-0',
-          phone: sub.phone || '',
-          email: sub.email || '',
-          contactPerson: '',
-          planType: sub.plan_type || 'ANUAL',
-          status: sub.status || 'ACTIVA',
-          monthlyFeeUsd: parseFloat(sub.monthly_fee_usd || 80),
-          maxBoxes: parseInt(sub.max_boxes || 2),
+          businessName: biz.name || biz.business_name || biz.nombre || 'Comercio Registrado',
+          rifDoc: biz.rif_doc || biz.rif || biz.documento || 'J-00000000-0',
+          phone: biz.phone || biz.telefono || sub.phone || '',
+          email: biz.email || biz.correo || sub.email || '',
+          contactPerson: biz.contact_person || biz.contacto || '',
+          planType,
+          nodeId: resolvedNodeId,
+          nodeName: node.name,
+          status: sub.status || biz.status || (biz.is_active === 0 ? 'SUSPENDIDA' : 'ACTIVA'),
+          monthlyFeeUsd: parseFloat(sub.monthly_fee_usd || biz.monthly_fee_usd || (planType === 'TRIENAL' ? 150 : planType === 'ANUAL' ? 80 : planType === 'MENSUAL' ? 50 : 0)),
+          maxBoxes: parseInt(sub.max_boxes || biz.max_boxes || (planType === 'TRIENAL' ? 3 : planType === 'ANUAL' ? 2 : 1)),
           connectedDevices,
           ltvUsd: ltv,
           paymentsCount,
-          expirationDate: sub.expiration_date ? new Date(sub.expiration_date).toISOString() : new Date(Date.now() + 365*24*60*60*1000).toISOString(),
-          startDate: sub.start_date ? new Date(sub.start_date).toISOString() : new Date().toISOString(),
-          notes: sub.notes || ''
+          distributorName: biz.distributor_name || '',
+          distributorCommission: parseFloat(biz.distributor_commission || 0),
+          modulesConfig: biz.modules_config ? { ...defaultModules, ...(typeof biz.modules_config === 'string' ? JSON.parse(biz.modules_config) : biz.modules_config) } : defaultModules,
+          expirationDate: sub.expiration_date ? new Date(sub.expiration_date).toISOString() : biz.expiration_date ? new Date(biz.expiration_date).toISOString() : defaultExp.toISOString(),
+          startDate: sub.start_date ? new Date(sub.start_date).toISOString() : new Date(biz.created_at || Date.now()).toISOString(),
+          notes: sub.notes || biz.notes || ''
         });
-      }
-    });
+      });
 
-    return {
-      source: 'supabase',
-      connected: true,
-      data: cloudList,
-      totalRevenueCollected: paysData.reduce((acc, p) => acc + (parseFloat(p.amount_usd) || 0), 0)
-    };
-  } catch (err) {
-    console.warn('Error consultando Supabase:', err);
-    return {
-      source: 'error',
-      connected: false,
-      data: [],
-      totalRevenueCollected: 0
-    };
+      // Añadir suscripciones huérfanas de este nodo
+      subsData.forEach(sub => {
+        if (!processedIds.has(sub.id)) {
+          const licenseKey = sub.license_key || 'VX-PRO-0000';
+          const ltv = ltvMap[sub.business_id] || ltvMap[licenseKey] || 0;
+          const paymentsCount = paymentCountMap[sub.business_id] || paymentCountMap[licenseKey] || 0;
+          const connectedDevices = devicesCountMap[licenseKey] || 0;
+
+          cloudList.push({
+            id: `${node.id}_sub_${sub.id}`,
+            businessId: sub.business_id,
+            licenseKey,
+            businessName: sub.business_name || sub.notes || 'Comercio Suscrito',
+            rifDoc: sub.rif_doc || 'J-00000000-0',
+            phone: sub.phone || '',
+            email: sub.email || '',
+            contactPerson: '',
+            planType: sub.plan_type || 'ANUAL',
+            nodeId: node.id,
+            nodeName: node.name,
+            status: sub.status || 'ACTIVA',
+            monthlyFeeUsd: parseFloat(sub.monthly_fee_usd || 80),
+            maxBoxes: parseInt(sub.max_boxes || 2),
+            connectedDevices,
+            ltvUsd: ltv,
+            paymentsCount,
+            expirationDate: sub.expiration_date ? new Date(sub.expiration_date).toISOString() : new Date(Date.now() + 365*24*60*60*1000).toISOString(),
+            startDate: sub.start_date ? new Date(sub.start_date).toISOString() : new Date().toISOString(),
+            notes: sub.notes || ''
+          });
+        }
+      });
+    } catch (err) {
+      console.warn(`Error consultando nodo ${node.id} (${node.name}):`, err);
+    }
   }
+
+  return {
+    source: 'supabase',
+    connected: hasSuccessfulConnection,
+    data: cloudList,
+    totalRevenueCollected: totalRevenue
+  };
 };
 
 /**
- * Registra un nuevo comercio directamente en Supabase Nube
+ * Registra un nuevo comercio directamente en el Nodo Supabase seleccionado
  */
 export const registerBusiness = async ({
   name,
@@ -186,12 +197,12 @@ export const registerBusiness = async ({
     throw new Error('El RIF o documento fiscal es obligatorio.');
   }
 
-  const supabase = getSupabaseClient();
+  const supabase = getNodeClient(nodeId);
   if (!supabase) {
-    throw new Error('No hay conexión con Supabase configurada. Por favor ve a "Configurar Supabase" e ingresa la URL y la Anon Key de tu proyecto.');
+    throw new Error(`No hay conexión con el nodo Supabase seleccionado (${nodeId}).`);
   }
 
-  // 1. Validar que el RIF sea único en la base de datos
+  // 1. Validar que el RIF sea único en el nodo de destino
   const { data: existingBiz, error: checkErr } = await supabase
     .from('businesses')
     .select('id, name')
@@ -301,10 +312,40 @@ export const registerBusiness = async ({
 };
 
 /**
- * Extiende la vigencia de una licencia (+30d o +365d) directamente en Supabase
+ * Helper interno para obtener el cliente Supabase correspondiente a una licencia
  */
-export const extendBusinessLicense = async (licenseKey, extraDays) => {
-  const supabase = getSupabaseClient();
+export const getClientForLicense = async (licenseKey, preferredNodeId = null) => {
+  if (preferredNodeId) {
+    const client = getNodeClient(preferredNodeId);
+    if (client) return { client, nodeId: preferredNodeId };
+  }
+
+  const nodes = getAllNodes();
+  for (const node of nodes) {
+    const client = getNodeClient(node.id);
+    if (client) {
+      try {
+        const { data } = await client
+          .from('businesses')
+          .select('id, node_id')
+          .eq('license_key', licenseKey)
+          .maybeSingle();
+
+        if (data) {
+          return { client, nodeId: data.node_id || node.id, business: data };
+        }
+      } catch {}
+    }
+  }
+
+  return { client: getSupabaseClient(), nodeId: 'node-default' };
+};
+
+/**
+ * Extiende los días de suscripción directamente en Supabase
+ */
+export const extendBusinessSubscription = async (licenseKey, extraDays = 30, notes = '') => {
+  const { client: supabase } = await getClientForLicense(licenseKey);
   if (!supabase) {
     throw new Error('Supabase no está configurado o conectado.');
   }
@@ -339,12 +380,14 @@ export const extendBusinessLicense = async (licenseKey, extraDays) => {
   return { success: true, newExpirationDate: baseDate };
 };
 
+export const extendBusinessLicense = extendBusinessSubscription;
+
 /**
  * Cambia el plan único de un comercio directamente en Supabase
  */
 export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId = null) => {
-  const supabase = getSupabaseClient();
-  if (!supabase) {
+  const { client: sourceClient, nodeId: sourceNodeId } = await getClientForLicense(licenseKey);
+  if (!sourceClient) {
     throw new Error('Supabase no está configurado o conectado.');
   }
 
@@ -373,7 +416,58 @@ export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId =
   const expDate = new Date();
   expDate.setDate(expDate.getDate() + days);
 
-  const { error: subErr } = await supabase
+  // Si hay reasignación de clúster a otro nodo diferente
+  if (targetNodeId && targetNodeId !== sourceNodeId) {
+    const targetClient = getNodeClient(targetNodeId);
+    if (!targetClient) throw new Error(`Nodo destino ${targetNodeId} no disponible.`);
+
+    // 1. Extraer comercio del nodo origen
+    const { data: bizData } = await sourceClient
+      .from('businesses')
+      .select('*')
+      .eq('license_key', licenseKey)
+      .maybeSingle();
+
+    if (bizData) {
+      // Inyectar en nodo destino
+      const targetBiz = { ...bizData, node_id: targetNodeId, updated_at: new Date().toISOString() };
+      delete targetBiz.id; // Permitir nuevo ID autoincremental en destino
+
+      const { data: newBiz } = await targetClient
+        .from('businesses')
+        .upsert(targetBiz, { onConflict: 'license_key' })
+        .select()
+        .single();
+
+      // Inyectar suscripción en nodo destino
+      await targetClient
+        .from('subscriptions')
+        .upsert({
+          business_id: newBiz?.id || bizData.id,
+          license_key: licenseKey,
+          plan_type: newPlanType,
+          monthly_fee_usd: fee,
+          max_boxes: boxes,
+          status: 'ACTIVA',
+          expiration_date: expDate.toISOString(),
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'license_key' });
+
+      // Opcional: Eliminar del nodo origen para liberar cuota demo
+      await sourceClient.from('businesses').delete().eq('license_key', licenseKey);
+
+      await logAuditEvent({
+        actionType: 'PROMOCION_NODO',
+        description: `Comercio ${licenseKey} promovido de ${sourceNodeId} a ${targetNodeId} con plan ${newPlanType}`,
+        targetBusiness: licenseKey
+      });
+
+      return { success: true, newPlanType, fee, boxes, expirationDate: expDate, nodeId: targetNodeId };
+    }
+  }
+
+  // Actualización en el mismo nodo
+  const { error: subErr } = await sourceClient
     .from('subscriptions')
     .update({
       plan_type: newPlanType,
@@ -397,7 +491,7 @@ export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId =
     bizUpdate.node_id = targetNodeId;
   }
 
-  await supabase
+  await sourceClient
     .from('businesses')
     .update(bizUpdate)
     .eq('license_key', licenseKey);
@@ -415,7 +509,7 @@ export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId =
  * Suspende o reactiva un comercio directamente en Supabase
  */
 export const toggleBusinessStatusInStorage = async (licenseKey, currentStatus) => {
-  const supabase = getSupabaseClient();
+  const { client: supabase } = await getClientForLicense(licenseKey);
   if (!supabase) {
     throw new Error('Supabase no está configurado o conectado.');
   }
@@ -449,7 +543,7 @@ export const toggleBusinessStatusInStorage = async (licenseKey, currentStatus) =
  * Actualiza la información completa de un comercio directamente en Supabase
  */
 export const updateBusinessInfo = async (licenseKey, updatedData) => {
-  const supabase = getSupabaseClient();
+  const { client: supabase } = await getClientForLicense(licenseKey);
   if (!supabase) {
     throw new Error('Supabase no está configurado o conectado.');
   }
@@ -530,7 +624,7 @@ export const recordPayment = async ({
   extendDays = 0,
   notes = ''
 }) => {
-  const supabase = getSupabaseClient();
+  const { client: supabase } = await getClientForLicense(licenseKey);
   if (!supabase) {
     throw new Error('Supabase no está configurado o conectado.');
   }
@@ -582,7 +676,7 @@ export const recordPayment = async ({
 
   // 3. Si se especificó extensión de vigencia, extender la suscripción
   if (parsedExtendDays > 0 && licenseKey) {
-    await extendBusinessLicense(licenseKey, parsedExtendDays);
+    await extendBusinessSubscription(licenseKey, parsedExtendDays);
   }
 
   return { success: true, payment: payData };
@@ -592,7 +686,7 @@ export const recordPayment = async ({
  * Obtiene el historial de pagos de un comercio específico
  */
 export const fetchBusinessPayments = async (licenseKey, businessId) => {
-  const supabase = getSupabaseClient();
+  const { client: supabase } = await getClientForLicense(licenseKey);
   if (!supabase) {
     return { success: false, data: [], error: 'Supabase no está conectado o configurado.' };
   }
@@ -613,7 +707,6 @@ export const fetchBusinessPayments = async (licenseKey, businessId) => {
     const { data, error } = await query;
 
     if (error) {
-      // Si la tabla payments no existe en Supabase todavía
       if (
         error.code === '42P01' || 
         error.code === 'PGRST204' ||
@@ -642,15 +735,14 @@ export const fetchBusinessPayments = async (licenseKey, businessId) => {
  * Elimina un registro de pago específico
  */
 export const deletePayment = async (paymentId) => {
-  const supabase = getSupabaseClient();
-  if (!supabase) throw new Error('Supabase no conectado.');
-
-  const { error } = await supabase
-    .from('payments')
-    .delete()
-    .eq('id', paymentId);
-
-  if (error) throw new Error(`Error al eliminar pago: ${error.message}`);
+  const nodes = getAllNodes();
+  for (const node of nodes) {
+    const client = getNodeClient(node.id);
+    if (client) {
+      const { error } = await client.from('payments').delete().eq('id', paymentId);
+      if (!error) return { success: true };
+    }
+  }
   return { success: true };
 };
 
@@ -658,7 +750,7 @@ export const deletePayment = async (paymentId) => {
  * Resetea y libera las cajas/dispositivos registrados para una licencia
  */
 export const resetBusinessDevices = async (licenseKey) => {
-  const supabase = getSupabaseClient();
+  const { client: supabase } = await getClientForLicense(licenseKey);
   if (!supabase) throw new Error('Supabase no conectado.');
 
   try {
