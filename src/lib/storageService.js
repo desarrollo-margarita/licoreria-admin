@@ -1,5 +1,5 @@
-import { getSupabaseClient, getNodeClient, getAllNodes, createDirectClient } from './supabaseClient';
-import { generateLicenseKey } from './licenseUtils';
+import { getSupabaseClient, getNodeClient, getAllNodes, createDirectClient } from './supabaseClient.js';
+import { generateLicenseKey } from './licenseUtils.js';
 
 /**
  * Obtiene todos los comercios y suscripciones directamente desde todos los Nodos / Clústeres de Supabase

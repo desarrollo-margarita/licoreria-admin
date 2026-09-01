@@ -167,8 +167,9 @@ export function cleanSupabaseKey(raw) {
 }
 
 export const getStoredCredentials = () => {
-  const rawUrl = localStorage.getItem('vx_supabase_url') || ENV_URL || DEFAULT_URL;
-  const rawKey = localStorage.getItem('vx_supabase_key') || ENV_KEY || '';
+  const isBrowser = typeof window !== 'undefined' && typeof localStorage !== 'undefined';
+  const rawUrl = (isBrowser ? localStorage.getItem('vx_supabase_url') : null) || ENV_URL || DEFAULT_URL;
+  const rawKey = (isBrowser ? localStorage.getItem('vx_supabase_key') : null) || ENV_KEY || '';
   return { 
     url: cleanSupabaseUrl(rawUrl), 
     key: cleanSupabaseKey(rawKey) 
@@ -178,8 +179,10 @@ export const getStoredCredentials = () => {
 export const saveCredentials = (url, key) => {
   const cleanUrl = cleanSupabaseUrl(url);
   const cleanKey = cleanSupabaseKey(key);
-  localStorage.setItem('vx_supabase_url', cleanUrl);
-  localStorage.setItem('vx_supabase_key', cleanKey);
+  if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+    localStorage.setItem('vx_supabase_url', cleanUrl);
+    localStorage.setItem('vx_supabase_key', cleanKey);
+  }
   
   cachedClient = null;
   cachedClientUrl = '';
@@ -272,7 +275,8 @@ const NODES_STORAGE_KEY = 'vx_supabase_nodes';
 
 export const getAllNodes = () => {
   try {
-    const stored = localStorage.getItem(NODES_STORAGE_KEY);
+    const isBrowser = typeof window !== 'undefined' && typeof localStorage !== 'undefined';
+    const stored = isBrowser ? localStorage.getItem(NODES_STORAGE_KEY) : null;
     let nodes = stored ? JSON.parse(stored) : [];
     
     const defaultCreds = getStoredCredentials();
@@ -310,10 +314,9 @@ export const getAllNodes = () => {
       nodes.push(demoNode);
     }
 
-    localStorage.setItem(NODES_STORAGE_KEY, JSON.stringify(nodes));
     return nodes;
-  } catch (e) {
-    console.error('Error cargando nodos de Supabase:', e);
+  } catch (err) {
+    console.warn('Error cargando nodos de Supabase:', err);
     return [
       {
         id: 'node-default',
@@ -365,7 +368,9 @@ export const saveNode = (nodeData) => {
     nodes.push(nodeObj);
   }
 
-  localStorage.setItem(NODES_STORAGE_KEY, JSON.stringify(nodes));
+  if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+    localStorage.setItem(NODES_STORAGE_KEY, JSON.stringify(nodes));
+  }
 
   // Si es default, actualizar credenciales activas
   if (nodeObj.isDefault) {
@@ -381,7 +386,9 @@ export const deleteNode = (nodeId) => {
   }
 
   const nodes = getAllNodes().filter(n => n.id !== nodeId);
-  localStorage.setItem(NODES_STORAGE_KEY, JSON.stringify(nodes));
+  if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+    localStorage.setItem(NODES_STORAGE_KEY, JSON.stringify(nodes));
+  }
   return true;
 };
 
