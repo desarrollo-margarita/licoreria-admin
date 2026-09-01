@@ -6,7 +6,7 @@ const CLUSTER_NODES = [
     id: 'node-default',
     name: 'Nodo 1 - Producción (Clientes Pagos)',
     url: 'https://sjmmlbwrghvlexxztkzv.supabase.co',
-    anonKey: process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqbW1sYndyZ2h2bGV4eHp0a3p2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcyMDM1NDYsImV4cCI6MjEwMjc3OTU0Nn0.b54w0Vp4vBsh-8k452i4PzR-jVnO3eOxg2eR5k9t45E'
+    anonKey: process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqbW1sYndyZ2h2bGV4eHp0a3p2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3MzE5NTcsImV4cCI6MjEwMjMwNzk1N30.7MpFfY59WIK7JxAYYTUHq5wj91eGKhr4ozgwJY25oLo'
   },
   {
     id: 'node-demos',
@@ -15,6 +15,7 @@ const CLUSTER_NODES = [
     anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlyd2Fxd2dweXhqeGpzZXhld3plIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyMjEyMjksImV4cCI6MjEwMzc5NzIyOX0.9JYbgkHhcjngVWZ1vkkh_Ube85lU-nZqwBFLzro81gU'
   }
 ];
+
 
 export default async function handler(req, res) {
   // CORS Headers
