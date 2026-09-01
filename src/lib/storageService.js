@@ -342,7 +342,7 @@ export const extendBusinessLicense = async (licenseKey, extraDays) => {
 /**
  * Cambia el plan único de un comercio directamente en Supabase
  */
-export const changeBusinessPlan = async (licenseKey, newPlanType) => {
+export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId = null) => {
   const supabase = getSupabaseClient();
   if (!supabase) {
     throw new Error('Supabase no está configurado o conectado.');
@@ -389,15 +389,26 @@ export const changeBusinessPlan = async (licenseKey, newPlanType) => {
     throw new Error(`Error al cambiar plan en Supabase: ${subErr.message}`);
   }
 
+  const bizUpdate = {
+    is_active: 1,
+    updated_at: new Date().toISOString()
+  };
+  if (targetNodeId) {
+    bizUpdate.node_id = targetNodeId;
+  }
+
   await supabase
     .from('businesses')
-    .update({
-      is_active: 1,
-      updated_at: new Date().toISOString()
-    })
+    .update(bizUpdate)
     .eq('license_key', licenseKey);
 
-  return { success: true, newPlanType, fee, boxes, expirationDate: expDate };
+  await logAuditEvent({
+    actionType: 'CAMBIO_PLAN',
+    description: `Plan cambiado a ${newPlanType} ($${fee}) para ${licenseKey}${targetNodeId ? ` · Clúster: ${targetNodeId}` : ''}`,
+    targetBusiness: licenseKey
+  });
+
+  return { success: true, newPlanType, fee, boxes, expirationDate: expDate, nodeId: targetNodeId };
 };
 
 /**

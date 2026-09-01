@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-  Sparkles, CheckCircle2, AlertTriangle, ShieldCheck, ArrowRight
+  Sparkles, AlertTriangle, ShieldCheck, ArrowRight, Database
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import Modal from '../ui/Modal';
 import { changeBusinessPlan } from '../../lib/storageService';
+import { getAllNodes } from '../../lib/supabaseClient';
 import { formatDate } from '../../lib/licenseUtils';
 
 export default function ChangePlanModal({
@@ -15,8 +16,24 @@ export default function ChangePlanModal({
 }) {
   const currentPlan = business?.planType || 'ANUAL';
   const [selectedPlan, setSelectedPlan] = useState(currentPlan);
+  const [targetNodeId, setTargetNodeId] = useState(business?.nodeId || 'node-default');
+  const [nodesList, setNodesList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      const allNodes = getAllNodes();
+      setNodesList(allNodes);
+      // Si era demo y sube a plan pago, sugerir nodo produccion
+      if (business?.planType === 'DEMO' || business?.nodeId === 'node-demos') {
+        const prodNode = allNodes.find(n => n.id === 'node-default') || allNodes[0];
+        if (prodNode) setTargetNodeId(prodNode.id);
+      } else {
+        setTargetNodeId(business?.nodeId || 'node-default');
+      }
+    }
+  }, [isOpen, business]);
 
   if (!business) return null;
 
@@ -63,7 +80,7 @@ export default function ChangePlanModal({
   calculatedNewExp.setDate(calculatedNewExp.getDate() + newPlanObj.days);
 
   const handleConfirmChange = async () => {
-    if (selectedPlan === currentPlan) {
+    if (selectedPlan === currentPlan && targetNodeId === business?.nodeId) {
       onClose();
       return;
     }
@@ -72,7 +89,7 @@ export default function ChangePlanModal({
     setErrorMsg('');
 
     try {
-      await changeBusinessPlan(business.licenseKey, selectedPlan);
+      await changeBusinessPlan(business.licenseKey, selectedPlan, targetNodeId);
       
       try {
         confetti({
@@ -194,6 +211,39 @@ export default function ChangePlanModal({
               );
             })}
           </div>
+        </div>
+
+        {/* Database Node / Cluster Selection */}
+        <div className="p-4 rounded-2xl bg-slate-950/80 border border-white/10 space-y-2">
+          <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+            <span className="flex items-center gap-1.5">
+              <Database className="w-3.5 h-3.5 text-cyan-400" />
+              Clúster de Base de Datos Asignado:
+            </span>
+            <span className="text-[10px] text-slate-400 font-mono">
+              Actual: {business.nodeId || 'node-default'}
+            </span>
+          </label>
+          <select
+            value={targetNodeId}
+            onChange={e => setTargetNodeId(e.target.value)}
+            className="w-full bg-[#0e0722] border border-white/15 rounded-xl px-4 py-2.5 text-xs font-bold text-white outline-none focus:border-cyan-400 cursor-pointer font-mono"
+          >
+            {nodesList.map(n => (
+              <option key={n.id} value={n.id}>
+                {n.name} {n.isDefault ? '(Default / Producción)' : ''}
+              </option>
+            ))}
+          </select>
+          <p className="text-[10px] text-slate-400 leading-relaxed">
+            {targetNodeId !== (business.nodeId || 'node-default') ? (
+              <span className="text-amber-300 font-semibold">
+                🔀 El comercio será reasignado a este clúster. La API de Vercel redirigirá su caja POS automáticamente.
+              </span>
+            ) : (
+              'El comercio permanecerá en su clúster actual.'
+            )}
+          </p>
         </div>
 
         {/* Impact Summary & Confirmation Alert */}

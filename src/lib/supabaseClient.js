@@ -273,40 +273,67 @@ const NODES_STORAGE_KEY = 'vx_supabase_nodes';
 export const getAllNodes = () => {
   try {
     const stored = localStorage.getItem(NODES_STORAGE_KEY);
-    const nodes = stored ? JSON.parse(stored) : [];
+    let nodes = stored ? JSON.parse(stored) : [];
     
     const defaultCreds = getStoredCredentials();
-    const hasDefault = nodes.some(n => n.id === 'node-default' || n.isDefault);
 
-    if (!hasDefault || nodes.length === 0) {
-      const defaultNode = {
+    // 1. Asegurar Nodo 1 (Producción)
+    let prodNode = nodes.find(n => n.id === 'node-default');
+    if (!prodNode) {
+      prodNode = {
         id: 'node-default',
-        name: 'Nodo 1 - Principal (Default)',
-        url: defaultCreds.url,
-        anonKey: defaultCreds.key,
+        name: 'Nodo 1 - Producción (Clientes Pagos)',
+        url: defaultCreds.url || cleanSupabaseUrl(ENV_URL),
+        anonKey: defaultCreds.key || cleanSupabaseKey(ENV_KEY),
         region: 'us-east-1',
         isDefault: true,
         createdAt: new Date().toISOString()
       };
-      
-      const updatedNodes = nodes.filter(n => n.id !== 'node-default');
-      updatedNodes.unshift(defaultNode);
-      localStorage.setItem(NODES_STORAGE_KEY, JSON.stringify(updatedNodes));
-      return updatedNodes;
+      nodes.unshift(prodNode);
+    } else if (prodNode.name === 'Nodo 1 - Principal (Default)') {
+      prodNode.name = 'Nodo 1 - Producción (Clientes Pagos)';
     }
 
+    // 2. Asegurar Nodo 2 (Demos / Pruebas)
+    let demoNode = nodes.find(n => n.id === 'node-demos');
+    if (!demoNode) {
+      demoNode = {
+        id: 'node-demos',
+        name: 'Nodo 2 - Demos / Pruebas (15 Días)',
+        url: 'https://irwaqwgpyxjxjsexewze.supabase.co',
+        anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlyd2Fxd2dweXhqeGpzZXhld3plIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyMjEyMjksImV4cCI6MjEwMzc5NzIyOX0.9JYbgkHhcjngVWZ1vkkh_Ube85lU-nZqwBFLzro81gU',
+        region: 'us-east-1',
+        isDefault: false,
+        notes: 'Clúster exclusivo para cuentas de prueba gratuitas',
+        createdAt: new Date().toISOString()
+      };
+      nodes.push(demoNode);
+    }
+
+    localStorage.setItem(NODES_STORAGE_KEY, JSON.stringify(nodes));
     return nodes;
   } catch (e) {
     console.error('Error cargando nodos de Supabase:', e);
-    return [{
-      id: 'node-default',
-      name: 'Nodo 1 - Principal (Default)',
-      url: cleanSupabaseUrl(ENV_URL),
-      anonKey: cleanSupabaseKey(ENV_KEY),
-      region: 'us-east-1',
-      isDefault: true,
-      createdAt: new Date().toISOString()
-    }];
+    return [
+      {
+        id: 'node-default',
+        name: 'Nodo 1 - Producción (Clientes Pagos)',
+        url: cleanSupabaseUrl(ENV_URL),
+        anonKey: cleanSupabaseKey(ENV_KEY),
+        region: 'us-east-1',
+        isDefault: true,
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: 'node-demos',
+        name: 'Nodo 2 - Demos / Pruebas (15 Días)',
+        url: 'https://irwaqwgpyxjxjsexewze.supabase.co',
+        anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlyd2Fxd2dweXhqeGpzZXhld3plIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyMjEyMjksImV4cCI6MjEwMzc5NzIyOX0.9JYbgkHhcjngVWZ1vkkh_Ube85lU-nZqwBFLzro81gU',
+        region: 'us-east-1',
+        isDefault: false,
+        createdAt: new Date().toISOString()
+      }
+    ];
   }
 };
 
