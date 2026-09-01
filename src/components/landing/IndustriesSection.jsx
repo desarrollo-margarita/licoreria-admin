@@ -77,38 +77,38 @@ export default function IndustriesSection() {
             return (
               <div
                 key={idx}
-                className={`relative bg-gradient-to-b from-[#1a0f36]/85 to-[#0d061e]/90 border border-white/10 ${ind.borderColor} rounded-2xl backdrop-blur-xl p-5 sm:p-6 flex flex-col justify-between h-full group transition-all duration-300 hover:-translate-y-1 shadow-xl overflow-hidden`}
+                className={`relative bg-gradient-to-b from-[#1a0f36]/85 to-[#0d061e]/90 border border-white/10 ${ind.borderColor} rounded-2xl backdrop-blur-xl p-4 sm:p-5 flex flex-col justify-between h-full group transition-all duration-300 hover:-translate-y-1 shadow-xl overflow-hidden`}
               >
                 {/* Top Lighting Flare */}
-                <div className="absolute top-0 left-0 right-0 h-16 bg-gradient-to-b from-white/[0.05] to-transparent pointer-events-none" />
-                <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${ind.accentColor} blur-2xl opacity-40 group-hover:opacity-80 transition-opacity rounded-full pointer-events-none`} />
+                <div className="absolute top-0 left-0 right-0 h-14 bg-gradient-to-b from-white/[0.05] to-transparent pointer-events-none" />
+                <div className={`absolute top-0 right-0 w-28 h-28 bg-gradient-to-br ${ind.accentColor} blur-2xl opacity-40 group-hover:opacity-80 transition-opacity rounded-full pointer-events-none`} />
 
                 <div className="relative z-10">
                   {/* Top Bar: Icon + Badge */}
-                  <div className="flex items-center justify-between mb-3.5">
-                    <div className="w-10 h-10 rounded-xl bg-slate-900/90 border border-white/15 flex items-center justify-center shadow-md relative group-hover:scale-105 transition-transform duration-300">
-                      <Icon className={`w-5 h-5 ${ind.iconColor}`} />
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="w-9 h-9 rounded-xl bg-slate-900/90 border border-white/15 flex items-center justify-center shadow-md relative group-hover:scale-105 transition-transform duration-300">
+                      <Icon className={`w-4 h-4 ${ind.iconColor}`} />
                     </div>
-                    <span className={`inline-flex items-center gap-1.5 text-[9px] font-black px-2.5 py-1 rounded-full border tracking-wider ${ind.badgeColor}`}>
+                    <span className={`inline-flex items-center gap-1.5 text-[9px] font-black px-2 py-0.5 rounded-full border tracking-wider ${ind.badgeColor}`}>
                       <span className={`w-1.5 h-1.5 rounded-full ${ind.dotColor} animate-pulse`} />
                       {ind.badge}
                     </span>
                   </div>
 
-                  <h3 className="text-base sm:text-lg font-black text-white mb-2 group-hover:text-cyan-300 transition-colors tracking-tight">
+                  <h3 className="text-sm sm:text-base font-black text-white mb-1.5 group-hover:text-cyan-300 transition-colors tracking-tight">
                     {ind.title}
                   </h3>
 
-                  <p className="text-slate-300/90 text-xs leading-relaxed mb-4 font-normal">
+                  <p className="text-slate-300/80 text-[11px] leading-relaxed mb-3 font-normal">
                     {ind.desc}
                   </p>
                 </div>
 
-                {/* Benefits list - Compact & Clean */}
-                <div className="pt-3 border-t border-white/[0.08] space-y-1.5 relative z-10">
+                {/* Benefits list - Ultra Compact & Clean */}
+                <div className="pt-2.5 border-t border-white/[0.08] space-y-1.5 relative z-10">
                   {ind.benefits.map((b, i) => (
-                    <div key={i} className="flex items-center gap-2 text-[11px] sm:text-xs text-slate-200 bg-slate-950/40 py-1.5 px-2.5 rounded-lg border border-white/[0.04]">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                    <div key={i} className="flex items-center gap-1.5 text-[11px] text-slate-200">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
                       <span className="font-medium truncate">{b}</span>
                     </div>
                   ))}
