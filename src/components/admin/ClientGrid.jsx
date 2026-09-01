@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { 
   Store, Copy, MessageCircle, Play, Pause, Search, Calendar, Sparkles, 
   Edit3, LayoutList, LayoutGrid, Monitor, Check, 
-  DollarSign, Receipt, Download, Sliders
+  DollarSign, Receipt, Download, Sliders, Database
 } from 'lucide-react';
 import Badge from '../ui/Badge';
 import { formatDate, getDaysRemaining } from '../../lib/licenseUtils';
 import { exportBusinessesToCsv } from '../../lib/storageService';
+import { getAllNodes } from '../../lib/supabaseClient';
 
 export default function ClientGrid({
   subscriptions = [],
@@ -29,6 +30,9 @@ export default function ClientGrid({
 }) {
   const [viewMode, setViewMode] = useState('list');
   const [copiedKey, setCopiedKey] = useState(null);
+  const [clusterFilter, setClusterFilter] = useState('ALL');
+
+  const nodes = getAllNodes();
 
   const handleCopy = (key) => {
     onCopyKey(key);
@@ -60,6 +64,12 @@ export default function ClientGrid({
     if (statusFilter === 'EXPIRING' && !isExpiring) return false;
     if (statusFilter === 'SUSPENDED' && !isSuspended && !isExpired) return false;
 
+    // Filtro por Clúster / Nodo
+    if (clusterFilter !== 'ALL') {
+      const subNode = sub.nodeId || 'node-default';
+      if (subNode !== clusterFilter) return false;
+    }
+
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       const matchName = (sub.businessName || '').toLowerCase().includes(q);
@@ -67,7 +77,9 @@ export default function ClientGrid({
       const matchPhone = (sub.phone || '').includes(q);
       const matchKey = (sub.licenseKey || '').toLowerCase().includes(q);
       const matchContact = (sub.contactPerson || '').toLowerCase().includes(q);
-      return matchName || matchRif || matchPhone || matchKey || matchContact;
+      const matchPlan = (sub.planType || '').toLowerCase().includes(q);
+      const matchNode = (sub.nodeId || '').toLowerCase().includes(q);
+      return matchName || matchRif || matchPhone || matchKey || matchContact || matchPlan || matchNode;
     }
     return true;
   });
@@ -141,6 +153,24 @@ export default function ClientGrid({
             >
               Suspendidos
             </button>
+          </div>
+
+          {/* Cluster / Node Filter Dropdown */}
+          <div className="flex items-center gap-1.5 bg-slate-950/90 px-3 py-1.5 rounded-2xl border border-white/10 text-xs">
+            <Database className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+            <select
+              value={clusterFilter}
+              onChange={e => setClusterFilter(e.target.value)}
+              className="bg-transparent text-slate-300 hover:text-white text-xs font-bold outline-none cursor-pointer pr-1"
+              title="Filtrar comercios por Clúster / Base de Datos"
+            >
+              <option value="ALL" className="bg-slate-900 text-white">Todos los Clústeres</option>
+              {nodes.map(n => (
+                <option key={n.id} value={n.id} className="bg-slate-900 text-white font-mono">
+                  {n.id === 'node-demos' ? '🟣 ' : '🟢 '}{n.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Export to CSV Button */}
