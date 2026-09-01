@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS public.businesses (
     contact_person TEXT,
     license_key TEXT UNIQUE NOT NULL,
     is_active INTEGER DEFAULT 1,
+    node_id TEXT DEFAULT 'node-default',
     distributor_name TEXT,
     distributor_commission NUMERIC DEFAULT 0.00,
     modules_config JSONB DEFAULT '{"cashea": true, "fiscal_printer": true, "multi_warehouse": true, "kardex": true, "restaurant_tables": false, "pdf_reports": true, "whatsapp_receipts": true}'::jsonb,
@@ -237,7 +238,7 @@ export const testSupabaseConnection = async (customUrl, customKey) => {
         });
     
     // Intenta consultar la tabla subscriptions
-    const { data, error } = await client.from('subscriptions').select('count', { count: 'exact', head: true });
+    const { error } = await client.from('subscriptions').select('count', { count: 'exact', head: true });
     
     if (error) {
       // Si la tabla no existe
@@ -262,3 +263,159 @@ export const testSupabaseConnection = async (customUrl, customKey) => {
     return { ok: false, message: `Error de red o URL inválida: ${err.message}` };
   }
 };
+
+// ========================================================
+// GESTIÓN DE CLÚSTERES / MULTI-NODO SUPABASE (SHARDING)
+// ========================================================
+
+const NODES_STORAGE_KEY = 'vx_supabase_nodes';
+
+export const getAllNodes = () => {
+  try {
+    const stored = localStorage.getItem(NODES_STORAGE_KEY);
+    const nodes = stored ? JSON.parse(stored) : [];
+    
+    const defaultCreds = getStoredCredentials();
+    const hasDefault = nodes.some(n => n.id === 'node-default' || n.isDefault);
+
+    if (!hasDefault || nodes.length === 0) {
+      const defaultNode = {
+        id: 'node-default',
+        name: 'Nodo 1 - Principal (Default)',
+        url: defaultCreds.url,
+        anonKey: defaultCreds.key,
+        region: 'us-east-1',
+        isDefault: true,
+        createdAt: new Date().toISOString()
+      };
+      
+      const updatedNodes = nodes.filter(n => n.id !== 'node-default');
+      updatedNodes.unshift(defaultNode);
+      localStorage.setItem(NODES_STORAGE_KEY, JSON.stringify(updatedNodes));
+      return updatedNodes;
+    }
+
+    return nodes;
+  } catch (e) {
+    console.error('Error cargando nodos de Supabase:', e);
+    return [{
+      id: 'node-default',
+      name: 'Nodo 1 - Principal (Default)',
+      url: cleanSupabaseUrl(ENV_URL),
+      anonKey: cleanSupabaseKey(ENV_KEY),
+      region: 'us-east-1',
+      isDefault: true,
+      createdAt: new Date().toISOString()
+    }];
+  }
+};
+
+export const saveNode = (nodeData) => {
+  const nodes = getAllNodes();
+  const cleanUrl = cleanSupabaseUrl(nodeData.url);
+  const cleanKey = cleanSupabaseKey(nodeData.anonKey);
+
+  const existingIdx = nodes.findIndex(n => n.id === nodeData.id);
+
+  const nodeObj = {
+    id: nodeData.id || `node-${Date.now()}`,
+    name: nodeData.name || `Nodo Supabase ${nodes.length + 1}`,
+    url: cleanUrl,
+    anonKey: cleanKey,
+    region: nodeData.region || 'us-east-1',
+    isDefault: !!nodeData.isDefault,
+    notes: nodeData.notes || '',
+    updatedAt: new Date().toISOString()
+  };
+
+  if (nodeObj.isDefault) {
+    nodes.forEach(n => { n.isDefault = false; });
+  }
+
+  if (existingIdx >= 0) {
+    nodes[existingIdx] = { ...nodes[existingIdx], ...nodeObj };
+  } else {
+    nodes.push(nodeObj);
+  }
+
+  localStorage.setItem(NODES_STORAGE_KEY, JSON.stringify(nodes));
+
+  // Si es default, actualizar credenciales activas
+  if (nodeObj.isDefault) {
+    saveCredentials(cleanUrl, cleanKey);
+  }
+
+  return nodeObj;
+};
+
+export const deleteNode = (nodeId) => {
+  if (nodeId === 'node-default') {
+    throw new Error('No se puede eliminar el nodo principal por defecto.');
+  }
+
+  const nodes = getAllNodes().filter(n => n.id !== nodeId);
+  localStorage.setItem(NODES_STORAGE_KEY, JSON.stringify(nodes));
+  return true;
+};
+
+export const setDefaultNode = (nodeId) => {
+  const nodes = getAllNodes();
+  let selected = null;
+
+  nodes.forEach(n => {
+    if (n.id === nodeId) {
+      n.isDefault = true;
+      selected = n;
+    } else {
+      n.isDefault = false;
+    }
+  });
+
+  if (selected) {
+    localStorage.setItem(NODES_STORAGE_KEY, JSON.stringify(nodes));
+    saveCredentials(selected.url, selected.anonKey);
+  }
+
+  return selected;
+};
+
+const nodeClientsCache = {};
+
+export const getNodeClient = (nodeId) => {
+  if (!nodeId || nodeId === 'node-default') {
+    return getSupabaseClient();
+  }
+
+  const nodes = getAllNodes();
+  const node = nodes.find(n => n.id === nodeId);
+  if (!node || !node.url || !node.anonKey) {
+    return getSupabaseClient();
+  }
+
+  const cacheKey = `${node.url}_${node.anonKey}`;
+  if (nodeClientsCache[cacheKey]) {
+    return nodeClientsCache[cacheKey];
+  }
+
+  try {
+    const client = createClient(node.url, node.anonKey, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+    });
+    nodeClientsCache[cacheKey] = client;
+    return client;
+  } catch (e) {
+    console.error(`Error creando cliente para nodo ${nodeId}:`, e);
+    return getSupabaseClient();
+  }
+};
+
+export const createDirectClient = (url, anonKey) => {
+  const cleanUrl = cleanSupabaseUrl(url);
+  const cleanKey = cleanSupabaseKey(anonKey);
+  if (!cleanUrl || !cleanKey) return null;
+
+  return createClient(cleanUrl, cleanKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+  });
+};
+

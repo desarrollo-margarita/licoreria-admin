@@ -2,7 +2,7 @@ import React from 'react';
 import { 
   Store, DollarSign, Radio, Sliders, LifeBuoy, FileText, 
   ChevronLeft, ChevronRight, LogOut, ArrowLeft, Cloud, 
-  ExternalLink, User
+  ExternalLink, User, Database
 } from 'lucide-react';
 
 export default function AdminSidebar({
@@ -53,6 +53,12 @@ export default function AdminSidebar({
       id: 'control',
       label: 'Control Global & OTA',
       icon: Sliders,
+      permission: 'global_control'
+    },
+    {
+      id: 'database',
+      label: 'Clústeres & Migración',
+      icon: Database,
       permission: 'global_control'
     },
     {

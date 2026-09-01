@@ -281,8 +281,15 @@ export default function ClientGrid({
                       {/* RIF & License Key */}
                       <td className="py-4 px-4">
                         <div className="space-y-1">
-                          <div className="font-mono font-bold text-slate-300 text-xs">
-                            {sub.rifDoc}
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono font-bold text-slate-300 text-xs">
+                              {sub.rifDoc}
+                            </span>
+                            {sub.nodeId && sub.nodeId !== 'node-default' && (
+                              <span className="px-1.5 py-0.5 rounded-md bg-purple-500/20 text-purple-300 text-[9px] font-mono font-bold border border-purple-500/30" title={`Asignado al nodo: ${sub.nodeId}`}>
+                                {sub.nodeId}
+                              </span>
+                            )}
                           </div>
                           <div className="flex items-center gap-1.5">
                             <span className="font-mono text-[11px] text-cyan-300/90 select-all font-semibold">

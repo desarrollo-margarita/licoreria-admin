@@ -32,6 +32,7 @@ import ClientPaymentPortalModal from './ClientPaymentPortalModal';
 import FinanzasTab from './tabs/FinanzasTab';
 import TelemetriaTab from './tabs/TelemetriaTab';
 import ControlGlobalTab from './tabs/ControlGlobalTab';
+import BasesDeDatosTab from './tabs/BasesDeDatosTab';
 import SoporteTab from './tabs/SoporteTab';
 import AuditoriaTab from './tabs/AuditoriaTab';
 
@@ -345,6 +346,7 @@ export default function AdminDashboard({ onBackToLanding }) {
     finances: 'Centro de Finanzas & Cobranzas',
     telemetry: 'Radar & Telemetría de Cajas',
     control: 'Control Global & Parámetros OTA',
+    database: 'Clústeres Supabase & Migrador Asistido',
     support: 'Mesa de Ayuda & Incidencias',
     audit: 'Bitácora de Auditoría'
   };
@@ -534,7 +536,17 @@ export default function AdminDashboard({ onBackToLanding }) {
             </div>
           )}
 
-          {/* TAB 5: MESA DE AYUDA & SOPORTE */}
+          {/* TAB 5: CLÚSTERES DE BASE DE DATOS & MIGRACIÓN */}
+          {activeTab === 'database' && (
+            <div className="animate-fadeIn">
+              <BasesDeDatosTab
+                businesses={subscriptions}
+                onRefreshAll={checkAndFetch}
+              />
+            </div>
+          )}
+
+          {/* TAB 6: MESA DE AYUDA & SOPORTE */}
           {activeTab === 'support' && (
             <div className="animate-fadeIn">
               <SoporteTab businesses={subscriptions} />

@@ -1,4 +1,4 @@
-import { getSupabaseClient } from './supabaseClient';
+import { getSupabaseClient, getNodeClient, createDirectClient } from './supabaseClient';
 import { generateLicenseKey } from './licenseUtils';
 
 /**
@@ -67,7 +67,7 @@ export const fetchAllBusinesses = async () => {
       const planType = sub.plan_type || biz.plan_type || biz.plan || 'ANUAL';
       let defaultDays = 365;
       if (planType === 'TRIENAL') defaultDays = 1095;
-      if (planType === 'MENSUAL') defaultDays = 30;
+      if (planType === 'MENSUAL') defaultDays = 365;
       if (planType === 'DEMO') defaultDays = 15;
 
       const defaultExp = new Date(new Date(biz.created_at || Date.now()).getTime() + defaultDays * 24 * 60 * 60 * 1000);
@@ -97,8 +97,9 @@ export const fetchAllBusinesses = async () => {
         email: biz.email || biz.correo || sub.email || '',
         contactPerson: biz.contact_person || biz.contacto || '',
         planType,
+        nodeId: biz.node_id || 'node-default',
         status: sub.status || biz.status || (biz.is_active === 0 ? 'SUSPENDIDA' : 'ACTIVA'),
-        monthlyFeeUsd: parseFloat(sub.monthly_fee_usd || biz.monthly_fee_usd || (planType === 'TRIENAL' ? 150 : planType === 'ANUAL' ? 80 : 12)),
+        monthlyFeeUsd: parseFloat(sub.monthly_fee_usd || biz.monthly_fee_usd || (planType === 'TRIENAL' ? 150 : planType === 'ANUAL' ? 80 : 50)),
         maxBoxes: parseInt(sub.max_boxes || biz.max_boxes || (planType === 'TRIENAL' ? 3 : planType === 'ANUAL' ? 2 : 1)),
         connectedDevices,
         ltvUsd: ltv,
@@ -172,7 +173,8 @@ export const registerBusiness = async ({
   planType,
   fee,
   boxes,
-  notes
+  notes,
+  nodeId = 'node-default'
 }) => {
   const trimmedName = name?.trim() || '';
   const trimmedRif = rif?.trim().toUpperCase() || '';
@@ -214,7 +216,7 @@ export const registerBusiness = async ({
   const parsedFee = parseFloat(fee);
   const monthlyFeeUsd = !isNaN(parsedFee) && parsedFee >= 0 
     ? parsedFee 
-    : (planType === 'TRIENAL' ? 150 : planType === 'ANUAL' ? 80 : planType === 'MENSUAL' ? 12 : 0);
+    : (planType === 'TRIENAL' ? 150 : planType === 'ANUAL' ? 80 : planType === 'MENSUAL' ? 50 : 0);
 
   const maxBoxes = Math.max(1, parseInt(boxes, 10) || 1);
 
@@ -228,7 +230,8 @@ export const registerBusiness = async ({
       email: email?.trim() || null,
       contact_person: contact?.trim() || null,
       license_key: licenseKey,
-      is_active: 1
+      is_active: 1,
+      node_id: nodeId || 'node-default'
     })
     .select()
     .single();
@@ -1197,5 +1200,228 @@ export const fetchAllTelemetryDevices = async () => {
     return [];
   }
 };
+
+/**
+ * 8. Actualizar nodo/clúster asignado a un comercio
+ */
+export const updateBusinessNode = async (licenseKey, newNodeId) => {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error('Supabase no configurado.');
+
+  const { error } = await supabase
+    .from('businesses')
+    .update({ node_id: newNodeId })
+    .eq('license_key', licenseKey);
+
+  if (error) throw new Error(`Error actualizando nodo del comercio: ${error.message}`);
+
+  await logAuditEvent({
+    actionType: 'CAMBIO_NODO_DATABASE',
+    description: `Comercio ${licenseKey} reasignado al nodo ${newNodeId}`,
+    targetBusiness: licenseKey
+  });
+
+  return { success: true };
+};
+
+/**
+ * 9. Exportar copia de seguridad completa (JSON) de la base de datos
+ */
+export const exportFullDatabaseBackup = async (sourceNodeId = 'node-default') => {
+  const client = getNodeClient(sourceNodeId);
+  if (!client) throw new Error('No se pudo conectar al nodo seleccionado para el backup.');
+
+  const tables = [
+    'businesses',
+    'subscriptions',
+    'payments',
+    'pos_devices',
+    'support_tickets',
+    'audit_logs',
+    'global_config'
+  ];
+
+  const backupData = {
+    metadata: {
+      appName: 'VentroX SuperAdmin SaaS',
+      version: '1.1.0',
+      exportDate: new Date().toISOString(),
+      sourceNodeId
+    },
+    tables: {}
+  };
+
+  for (const table of tables) {
+    try {
+      const { data, error } = await client.from(table).select('*');
+      if (!error && data) {
+        backupData.tables[table] = data;
+      } else {
+        backupData.tables[table] = [];
+      }
+    } catch {
+      backupData.tables[table] = [];
+    }
+  }
+
+  return backupData;
+};
+
+/**
+ * 10. Restaurar copia de seguridad completa (JSON) en un nodo destino
+ */
+export const restoreFullDatabaseBackup = async (backupData, targetNodeId = 'node-default', onProgress = () => {}) => {
+  const client = getNodeClient(targetNodeId);
+  if (!client) throw new Error('No se pudo conectar al nodo destino para la restauración.');
+
+  if (!backupData || !backupData.tables) {
+    throw new Error('El archivo de copia de seguridad no tiene una estructura JSON válida.');
+  }
+
+  const tableOrder = [
+    'businesses',
+    'subscriptions',
+    'payments',
+    'pos_devices',
+    'support_tickets',
+    'audit_logs',
+    'global_config'
+  ];
+
+  const totalSteps = tableOrder.length;
+  let currentStep = 0;
+  const summary = {};
+
+  for (const table of tableOrder) {
+    currentStep++;
+    const rows = backupData.tables[table] || [];
+
+    onProgress({
+      step: currentStep,
+      totalSteps,
+      currentTable: table,
+      percentage: Math.round((currentStep / totalSteps) * 100),
+      message: `Restaurando tabla ${table} (${rows.length} registros)...`
+    });
+
+    if (rows.length > 0) {
+      // Insertar/actualizar en lotes de 50
+      const batchSize = 50;
+      let inserted = 0;
+
+      for (let i = 0; i < rows.length; i += batchSize) {
+        const batch = rows.slice(i, i + batchSize);
+        const { error } = await client.from(table).upsert(batch, { onConflict: table === 'global_config' ? 'key' : 'id' });
+        if (!error) {
+          inserted += batch.length;
+        } else {
+          console.warn(`Error restaurando lote en ${table}:`, error);
+        }
+      }
+      summary[table] = inserted;
+    } else {
+      summary[table] = 0;
+    }
+  }
+
+  await logAuditEvent({
+    actionType: 'RESTAURACION_BACKUP_JSON',
+    description: `Copia de seguridad restaurada en nodo ${targetNodeId}. Tablas: ${Object.keys(summary).length}`,
+    targetBusiness: 'SISTEMA_GLOBAL'
+  });
+
+  return { success: true, summary };
+};
+
+/**
+ * 11. Migrador Asistido Cloud-to-Cloud de Supabase
+ */
+export const migrateDatabase = async ({
+  sourceUrl,
+  sourceKey,
+  targetUrl,
+  targetKey,
+  onProgress = () => {}
+}) => {
+  const sourceClient = createDirectClient(sourceUrl, sourceKey);
+  const targetClient = createDirectClient(targetUrl, targetKey);
+
+  if (!sourceClient) throw new Error('Credenciales del proyecto Supabase Origen no válidas.');
+  if (!targetClient) throw new Error('Credenciales del proyecto Supabase Destino no válidas.');
+
+  const tableOrder = [
+    { name: 'businesses', label: 'Comercios & Licencias', conflictCol: 'id' },
+    { name: 'subscriptions', label: 'Suscripciones POS', conflictCol: 'id' },
+    { name: 'payments', label: 'Historial de Pagos & Cobranzas', conflictCol: 'id' },
+    { name: 'pos_devices', label: 'Cajas POS & Telemetría', conflictCol: 'id' },
+    { name: 'support_tickets', label: 'Tickets de Soporte', conflictCol: 'id' },
+    { name: 'audit_logs', label: 'Bitácora de Auditoría', conflictCol: 'id' },
+    { name: 'global_config', label: 'Parámetros Globales & BCV', conflictCol: 'key' }
+  ];
+
+  const totalSteps = tableOrder.length;
+  let currentStep = 0;
+  const migrationSummary = {};
+
+  for (const t of tableOrder) {
+    currentStep++;
+    onProgress({
+      step: currentStep,
+      totalSteps,
+      currentTable: t.name,
+      tableLabel: t.label,
+      percentage: Math.round((currentStep / totalSteps) * 100),
+      message: `Extrayendo y transfiriendo ${t.label} (${t.name})...`
+    });
+
+    // 1. Extraer del origen
+    const { data: rows, error: sourceErr } = await sourceClient
+      .from(t.name)
+      .select('*');
+
+    if (sourceErr) {
+      console.warn(`No se pudo leer la tabla ${t.name} del origen:`, sourceErr.message);
+      migrationSummary[t.name] = { count: 0, status: 'SKIPPED_OR_EMPTY' };
+      continue;
+    }
+
+    if (rows && rows.length > 0) {
+      // 2. Insertar en destino en lotes
+      const batchSize = 50;
+      let insertedCount = 0;
+
+      for (let i = 0; i < rows.length; i += batchSize) {
+        const batch = rows.slice(i, i + batchSize);
+        const { error: targetErr } = await targetClient
+          .from(t.name)
+          .upsert(batch, { onConflict: t.conflictCol });
+
+        if (!targetErr) {
+          insertedCount += batch.length;
+        } else {
+          console.error(`Error insertando en ${t.name} destino:`, targetErr);
+          throw new Error(`Error en destino tabla ${t.name}: ${targetErr.message}. Asegúrate de haber ejecutado el script SQL en el proyecto destino.`);
+        }
+      }
+
+      migrationSummary[t.name] = { count: insertedCount, status: 'SUCCESS' };
+    } else {
+      migrationSummary[t.name] = { count: 0, status: 'EMPTY' };
+    }
+  }
+
+  await logAuditEvent({
+    actionType: 'MIGRACION_DATABASE_CLOUD',
+    description: `Migración asistida completada de ${sourceUrl} hacia ${targetUrl}`,
+    targetBusiness: 'MIGRACION_HUB'
+  });
+
+  return {
+    success: true,
+    summary: migrationSummary,
+    completedAt: new Date().toISOString()
+  };
+};
+
 
 

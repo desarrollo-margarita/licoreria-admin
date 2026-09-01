@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Store, Key, User, Phone, Mail, FileText, DollarSign, Monitor, 
-  Sparkles, CheckCircle2, AlertTriangle, ShieldCheck
+  Sparkles, AlertTriangle, Database
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import Modal from '../ui/Modal';
 import { registerBusiness } from '../../lib/storageService';
+import { getAllNodes } from '../../lib/supabaseClient';
 
 export default function NewBusinessModal({ isOpen, onClose, onCreated }) {
   const [name, setName] = useState('');
@@ -14,11 +15,22 @@ export default function NewBusinessModal({ isOpen, onClose, onCreated }) {
   const [contact, setContact] = useState('');
   const [email, setEmail] = useState('');
   const [planType, setPlanType] = useState('ANUAL');
+  const [nodeId, setNodeId] = useState('node-default');
+  const [nodesList, setNodesList] = useState([]);
   const [fee, setFee] = useState('80.00');
   const [boxes, setBoxes] = useState('2');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      const allNodes = getAllNodes();
+      setNodesList(allNodes);
+      const defaultNode = allNodes.find(n => n.isDefault) || allNodes[0];
+      if (defaultNode) setNodeId(defaultNode.id);
+    }
+  }, [isOpen]);
 
   const handlePlanChange = (e) => {
     const val = e.target.value;
@@ -78,7 +90,8 @@ export default function NewBusinessModal({ isOpen, onClose, onCreated }) {
         planType,
         fee,
         boxes,
-        notes
+        notes,
+        nodeId
       });
 
       triggerConfetti();
@@ -204,20 +217,39 @@ export default function NewBusinessModal({ isOpen, onClose, onCreated }) {
             </span>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-              Tipo de Plan Comercial
-            </label>
-            <select
-              value={planType}
-              onChange={handlePlanChange}
-              className="w-full bg-[#0e0722] border border-white/15 rounded-xl px-4 py-3 text-xs font-bold text-white outline-none focus:border-cyan-400 cursor-pointer transition-colors shadow-sm"
-            >
-              <option value="ANUAL">Plan Anual Pro ($80.00 / año · 2 Cajas Incluidas) - RECOMENDADO</option>
-              <option value="TRIENAL">Plan Trienal Multi-Caja ($150.00 / 3 Años · 3 Cajas)</option>
-              <option value="MENSUAL">Plan Emprendedor ($50.00 / año · 1 Caja)</option>
-              <option value="DEMO">Prueba Gratuita Demo (15 Días · 1 Caja)</option>
-            </select>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                Tipo de Plan Comercial
+              </label>
+              <select
+                value={planType}
+                onChange={handlePlanChange}
+                className="w-full bg-[#0e0722] border border-white/15 rounded-xl px-4 py-3 text-xs font-bold text-white outline-none focus:border-cyan-400 cursor-pointer transition-colors shadow-sm"
+              >
+                <option value="ANUAL">Plan Anual Pro ($80.00 / año · 2 Cajas Incluidas) - RECOMENDADO</option>
+                <option value="TRIENAL">Plan Trienal Multi-Caja ($150.00 / 3 Años · 3 Cajas)</option>
+                <option value="MENSUAL">Plan Emprendedor ($50.00 / año · 1 Caja)</option>
+                <option value="DEMO">Prueba Gratuita Demo (15 Días · 1 Caja)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
+                <Database className="w-3.5 h-3.5 text-cyan-400" /> Clúster / Nodo Supabase
+              </label>
+              <select
+                value={nodeId}
+                onChange={e => setNodeId(e.target.value)}
+                className="w-full bg-[#0e0722] border border-white/15 rounded-xl px-4 py-3 text-xs font-bold text-white outline-none focus:border-cyan-400 cursor-pointer transition-colors shadow-sm font-mono"
+              >
+                {nodesList.map(n => (
+                  <option key={n.id} value={n.id}>
+                    {n.name} {n.isDefault ? '(Default)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4 pt-1">
