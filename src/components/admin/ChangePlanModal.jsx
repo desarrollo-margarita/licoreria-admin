@@ -24,13 +24,13 @@ export default function ChangePlanModal({
     {
       id: 'MENSUAL',
       title: 'Plan Emprendedor',
-      period: 'Mensual',
-      price: '$12.00 / mes',
-      fee: 12.00,
+      period: 'Anual (1 Año)',
+      price: '$50.00 / año',
+      fee: 50.00,
       boxes: '1 Caja (PC)',
-      days: 30,
-      desc: 'Ideal para pequeños negocios o bodegas individuales.',
-      badge: 'Básico'
+      days: 365,
+      desc: 'Licencia anual de 1 caja para pequeños comercios y bodegas.',
+      badge: 'Económico'
     },
     {
       id: 'ANUAL',

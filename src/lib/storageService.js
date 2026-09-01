@@ -204,7 +204,7 @@ export const registerBusiness = async ({
   
   let days = 365;
   if (planType === 'TRIENAL') days = 1095;
-  if (planType === 'MENSUAL') days = 30;
+  if (planType === 'MENSUAL') days = 365;
   if (planType === 'DEMO') days = 15;
 
   const startDate = new Date();
@@ -354,9 +354,9 @@ export const changeBusinessPlan = async (licenseKey, newPlanType) => {
     boxes = 3;
     days = 1095;
   } else if (newPlanType === 'MENSUAL') {
-    fee = 12.00;
+    fee = 50.00;
     boxes = 1;
-    days = 30;
+    days = 365;
   } else if (newPlanType === 'DEMO') {
     fee = 0.00;
     boxes = 1;

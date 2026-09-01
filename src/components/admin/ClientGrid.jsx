@@ -39,14 +39,14 @@ export default function ClientGrid({
   const planLabelMap = {
     'TRIENAL': 'Trienal Multi-Caja (3 Años)',
     'ANUAL': 'Anual Pro ($80/año)',
-    'MENSUAL': 'Emprendedor ($12/mes)',
+    'MENSUAL': 'Emprendedor ($50/año)',
     'DEMO': 'Prueba Demo (15 Días)'
   };
 
   const planShortLabelMap = {
     'TRIENAL': 'Trienal (3 Años)',
     'ANUAL': 'Anual Pro',
-    'MENSUAL': 'Mensual',
+    'MENSUAL': 'Emprendedor',
     'DEMO': 'Demo'
   };
 

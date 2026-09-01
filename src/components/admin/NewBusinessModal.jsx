@@ -30,7 +30,7 @@ export default function NewBusinessModal({ isOpen, onClose, onCreated }) {
       setFee('80.00');
       setBoxes('2');
     } else if (val === 'MENSUAL') {
-      setFee('12.00');
+      setFee('50.00');
       setBoxes('1');
     } else if (val === 'DEMO') {
       setFee('0.00');
@@ -215,7 +215,7 @@ export default function NewBusinessModal({ isOpen, onClose, onCreated }) {
             >
               <option value="ANUAL">Plan Anual Pro ($80.00 / año · 2 Cajas Incluidas) - RECOMENDADO</option>
               <option value="TRIENAL">Plan Trienal Multi-Caja ($150.00 / 3 Años · 3 Cajas)</option>
-              <option value="MENSUAL">Plan Emprendedor ($12.00 / mes · 1 Caja)</option>
+              <option value="MENSUAL">Plan Emprendedor ($50.00 / año · 1 Caja)</option>
               <option value="DEMO">Prueba Gratuita Demo (15 Días · 1 Caja)</option>
             </select>
           </div>
