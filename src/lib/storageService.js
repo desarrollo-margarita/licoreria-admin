@@ -98,10 +98,12 @@ export const fetchAllBusinesses = async () => {
           whatsapp_receipts: true
         };
 
-        const resolvedNodeId = biz.node_id || node.id || 'node-default';
+        const isDemo = (planType || '').toUpperCase() === 'DEMO' || (licenseKey || '').startsWith('VX-DEMO');
+        const resolvedNodeId = isDemo ? 'node-demos' : (biz.node_id || (node.id === 'node-demos' ? 'node-default' : node.id) || 'node-default');
+        const resolvedNodeName = isDemo ? 'Nodo 2 - Demos / Pruebas (15 Días)' : (node.id === 'node-demos' ? 'Nodo 1 - Producción (Clientes Pagos)' : node.name);
 
         cloudList.push({
-          id: `${node.id}_${biz.id || sub.id || Math.random()}`,
+          id: `${resolvedNodeId}_${biz.id || sub.id || Math.random()}`,
           businessId: biz.id,
           licenseKey,
           businessName: biz.name || biz.business_name || biz.nombre || 'Comercio Registrado',
@@ -111,7 +113,7 @@ export const fetchAllBusinesses = async () => {
           contactPerson: biz.contact_person || biz.contacto || '',
           planType,
           nodeId: resolvedNodeId,
-          nodeName: node.name,
+          nodeName: resolvedNodeName,
           status: sub.status || biz.status || (biz.is_active === 0 ? 'SUSPENDIDA' : 'ACTIVA'),
           monthlyFeeUsd: parseFloat(sub.monthly_fee_usd || biz.monthly_fee_usd || (planType === 'TRIENAL' ? 150 : planType === 'ANUAL' ? 80 : planType === 'MENSUAL' ? 50 : 0)),
           maxBoxes: parseInt(sub.max_boxes || biz.max_boxes || (planType === 'TRIENAL' ? 3 : planType === 'ANUAL' ? 2 : 1)),
@@ -135,8 +137,12 @@ export const fetchAllBusinesses = async () => {
           const paymentsCount = paymentCountMap[sub.business_id] || paymentCountMap[licenseKey] || 0;
           const connectedDevices = devicesCountMap[licenseKey] || 0;
 
+          const isDemoSub = (sub.plan_type || '').toUpperCase() === 'DEMO' || licenseKey.startsWith('VX-DEMO');
+          const resolvedSubNodeId = isDemoSub ? 'node-demos' : 'node-default';
+          const resolvedSubNodeName = isDemoSub ? 'Nodo 2 - Demos / Pruebas (15 Días)' : 'Nodo 1 - Producción (Clientes Pagos)';
+
           cloudList.push({
-            id: `${node.id}_sub_${sub.id}`,
+            id: `${resolvedSubNodeId}_sub_${sub.id}`,
             businessId: sub.business_id,
             licenseKey,
             businessName: sub.business_name || sub.notes || 'Comercio Suscrito',
@@ -145,8 +151,8 @@ export const fetchAllBusinesses = async () => {
             email: sub.email || '',
             contactPerson: '',
             planType: sub.plan_type || 'ANUAL',
-            nodeId: node.id,
-            nodeName: node.name,
+            nodeId: resolvedSubNodeId,
+            nodeName: resolvedSubNodeName,
             status: sub.status || 'ACTIVA',
             monthlyFeeUsd: parseFloat(sub.monthly_fee_usd || 80),
             maxBoxes: parseInt(sub.max_boxes || 2),
@@ -421,49 +427,69 @@ export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId =
     const targetClient = getNodeClient(targetNodeId);
     if (!targetClient) throw new Error(`Nodo destino ${targetNodeId} no disponible.`);
 
-    // 1. Extraer comercio del nodo origen
-    const { data: bizData } = await sourceClient
-      .from('businesses')
-      .select('*')
-      .eq('license_key', licenseKey)
-      .maybeSingle();
+    const allNodes = getAllNodes();
+    const sourceNode = allNodes.find(n => n.id === sourceNodeId);
+    const targetNode = allNodes.find(n => n.id === targetNodeId);
+    const isDistinctPhysicalDb = sourceNode && targetNode && sourceNode.url !== targetNode.url;
 
-    if (bizData) {
-      // Inyectar en nodo destino
-      const targetBiz = { ...bizData, node_id: targetNodeId, updated_at: new Date().toISOString() };
-      delete targetBiz.id; // Permitir nuevo ID autoincremental en destino
-
-      const { data: newBiz } = await targetClient
+    if (isDistinctPhysicalDb) {
+      // 1. Extraer comercio del nodo origen
+      const { data: bizData } = await sourceClient
         .from('businesses')
-        .upsert(targetBiz, { onConflict: 'license_key' })
-        .select()
-        .single();
+        .select('*')
+        .eq('license_key', licenseKey)
+        .maybeSingle();
 
-      // Inyectar suscripción en nodo destino
+      if (bizData) {
+        // Inyectar en nodo destino
+        const targetBiz = { ...bizData, node_id: targetNodeId, updated_at: new Date().toISOString() };
+        delete targetBiz.id; // Permitir nuevo ID autoincremental en destino
+
+        const { data: newBiz } = await targetClient
+          .from('businesses')
+          .upsert(targetBiz, { onConflict: 'license_key' })
+          .select()
+          .single();
+
+        // Inyectar suscripción en nodo destino
+        await targetClient
+          .from('subscriptions')
+          .upsert({
+            business_id: newBiz?.id || bizData.id,
+            license_key: licenseKey,
+            plan_type: newPlanType,
+            monthly_fee_usd: fee,
+            max_boxes: boxes,
+            status: 'ACTIVA',
+            expiration_date: expDate.toISOString(),
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'license_key' });
+
+        // Eliminar del nodo origen para liberar cuota demo
+        await sourceClient.from('businesses').delete().eq('license_key', licenseKey);
+      }
+    } else {
+      // Misma base de datos física: actualizar en el cliente actual directamente
       await targetClient
         .from('subscriptions')
-        .upsert({
-          business_id: newBiz?.id || bizData.id,
-          license_key: licenseKey,
+        .update({
           plan_type: newPlanType,
           monthly_fee_usd: fee,
           max_boxes: boxes,
           status: 'ACTIVA',
           expiration_date: expDate.toISOString(),
           updated_at: new Date().toISOString()
-        }, { onConflict: 'license_key' });
-
-      // Opcional: Eliminar del nodo origen para liberar cuota demo
-      await sourceClient.from('businesses').delete().eq('license_key', licenseKey);
-
-      await logAuditEvent({
-        actionType: 'PROMOCION_NODO',
-        description: `Comercio ${licenseKey} promovido de ${sourceNodeId} a ${targetNodeId} con plan ${newPlanType}`,
-        targetBusiness: licenseKey
-      });
-
-      return { success: true, newPlanType, fee, boxes, expirationDate: expDate, nodeId: targetNodeId };
+        })
+        .eq('license_key', licenseKey);
     }
+
+    await logAuditEvent({
+      actionType: 'PROMOCION_NODO',
+      description: `Comercio ${licenseKey} promovido de ${sourceNodeId} a ${targetNodeId} con plan ${newPlanType}`,
+      targetBusiness: licenseKey
+    });
+
+    return { success: true, newPlanType, fee, boxes, expirationDate: expDate, nodeId: targetNodeId };
   }
 
   // Actualización en el mismo nodo

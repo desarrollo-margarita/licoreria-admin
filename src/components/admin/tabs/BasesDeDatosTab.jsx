@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   Database, Server, Plus, RefreshCw, CheckCircle2, 
   Download, Upload, Copy, Check, 
-  AlertTriangle, HardDrive, Zap, Trash2, Edit3
+  AlertTriangle, HardDrive, Zap, Trash2, Edit3,
+  Activity, ShieldCheck
 } from 'lucide-react';
 import Button from '../../ui/Button';
 import Modal from '../../ui/Modal';
@@ -42,6 +43,25 @@ export default function BasesDeDatosTab({ businesses = [], onRefreshAll }) {
   const [restoreStatusMsg, setRestoreStatusMsg] = useState('');
   const [copiedSql, setCopiedSql] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
+  const [isKeepAliveLoading, setIsKeepAliveLoading] = useState(false);
+  const [keepAliveResult, setKeepAliveResult] = useState(null);
+
+  const handleRunKeepAlive = async () => {
+    setIsKeepAliveLoading(true);
+    try {
+      const res = await fetch('/api/keep-alive');
+      const data = await res.json();
+      setKeepAliveResult(data);
+    } catch (err) {
+      setKeepAliveResult({
+        ok: false,
+        message: 'Error de red o servidor: ' + err.message,
+        results: []
+      });
+    } finally {
+      setIsKeepAliveLoading(false);
+    }
+  };
 
   useEffect(() => {
     loadNodes();
@@ -345,6 +365,59 @@ export default function BasesDeDatosTab({ businesses = [], onRefreshAll }) {
       {/* ==================================================== */}
       {activeSubTab === 'nodes' && (
         <div className="space-y-6 animate-fadeIn">
+          {/* Tarjeta de Protección Anti-Pausa Automática (Vercel Cron) */}
+          <div className="p-5 rounded-3xl bg-gradient-to-r from-emerald-950/40 via-slate-900/80 to-cyan-950/40 border border-emerald-500/25 shadow-xl backdrop-blur-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5 min-w-0">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0 mt-0.5 shadow-lg shadow-emerald-500/10">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-bold text-white">Protección Anti-Pausa de Clústeres (Vercel Cron)</span>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Activo: Cada 4 días
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Vercel ejecuta de fondo <code className="text-emerald-300 bg-emerald-950/70 border border-emerald-500/30 px-1.5 py-0.5 rounded text-[11px] font-mono">/api/keep-alive</code> cada 4 días para simular consultas reales a los nodos gratuitos de Supabase y reiniciar el temporizador de inactividad de 7 días.
+                </p>
+
+                {keepAliveResult && (
+                  <div className="mt-3 p-3 rounded-2xl bg-slate-950/90 border border-white/10 text-xs space-y-2">
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 border-b border-white/5 pb-1.5">
+                      <span>Resultado de la verificación manual:</span>
+                      <span className="font-mono text-cyan-300">
+                        {new Date(keepAliveResult.timestamp || Date.now()).toLocaleTimeString()} ({keepAliveResult.totalDurationMs || 0}ms)
+                      </span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {keepAliveResult.results?.map((res, i) => (
+                        <div key={i} className="flex items-center justify-between text-[11px] gap-3">
+                          <span className="text-slate-200 font-medium truncate">{res.name}:</span>
+                          <span className={res.healthy ? "text-emerald-400 font-mono font-bold shrink-0" : "text-rose-400 font-mono font-bold shrink-0"}>
+                            {res.healthy ? `✓ Despierto (HTTP ${res.statusCode || res.dbStatus || 200} • ${res.latencyMs}ms)` : `✗ Error: ${res.error || res.message}`}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="shrink-0 w-full md:w-auto">
+              <Button
+                onClick={handleRunKeepAlive}
+                disabled={isKeepAliveLoading}
+                variant="secondary"
+                size="sm"
+                icon={isKeepAliveLoading ? RefreshCw : Activity}
+                className="w-full md:w-auto border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10 cursor-pointer"
+              >
+                {isKeepAliveLoading ? 'Enviando Ping...' : 'Testear Keep-Alive Ahora'}
+              </Button>
+            </div>
+          </div>
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-base font-bold text-white">Nodos Supabase Configurados</h3>

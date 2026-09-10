@@ -11,8 +11,8 @@ const CLUSTER_NODES = [
   {
     id: 'node-demos',
     name: 'Nodo 2 - Demos / Pruebas (15 Días)',
-    url: 'https://irwaqwgpyxjxjsexewze.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlyd2Fxd2dweXhqeGpzZXhld3plIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyMjEyMjksImV4cCI6MjEwMzc5NzIyOX0.9JYbgkHhcjngVWZ1vkkh_Ube85lU-nZqwBFLzro81gU'
+    url: process.env.DEMO_SUPABASE_URL || 'https://irwaqwgpyxjxjsexewze.supabase.co',
+    anonKey: process.env.DEMO_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlyd2Fxd2dweXhqeGpzZXhld3plIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyMjEyMjksImV4cCI6MjEwMzc5NzIyOX0.9JYbgkHhcjngVWZ1vkkh_Ube85lU-nZqwBFLzro81gU'
   }
 ];
 
@@ -86,6 +86,11 @@ export default async function handler(req, res) {
         if (isSuspended) calculatedStatus = 'SUSPENDIDA';
         else if (isExpired) calculatedStatus = 'VENCIDA';
 
+        const isDemo = (sub.plan_type || '').toUpperCase() === 'DEMO' || searchKey.startsWith('VX-DEMO');
+        const assignedNode = isDemo
+          ? (CLUSTER_NODES.find(n => n.id === 'node-demos') || node)
+          : (CLUSTER_NODES.find(n => n.id === 'node-default') || node);
+
         return res.status(200).json({
           ok: true,
           status: calculatedStatus,
@@ -101,10 +106,10 @@ export default async function handler(req, res) {
           start_date: sub.start_date,
           expiration_date: sub.expiration_date,
           cluster: {
-            id: node.id,
-            name: node.name,
-            supabase_url: node.url,
-            supabase_anon_key: node.anonKey
+            id: assignedNode.id,
+            name: assignedNode.name,
+            supabase_url: assignedNode.url,
+            supabase_anon_key: assignedNode.anonKey
           },
           modules: sub.businesses?.modules_config || {
             cashea: true,

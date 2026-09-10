@@ -304,14 +304,18 @@ export const getAllNodes = () => {
       demoNode = {
         id: 'node-demos',
         name: 'Nodo 2 - Demos / Pruebas (15 Días)',
-        url: 'https://irwaqwgpyxjxjsexewze.supabase.co',
-        anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlyd2Fxd2dweXhqeGpzZXhld3plIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyMjEyMjksImV4cCI6MjEwMzc5NzIyOX0.9JYbgkHhcjngVWZ1vkkh_Ube85lU-nZqwBFLzro81gU',
+        url: 'https://sjmmlbwrghvlexxztkzv.supabase.co',
+        anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqbW1sYndyZ2h2bGV4eHp0a3p2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3MzE5NTcsImV4cCI6MjEwMjMwNzk1N30.7MpFfY59WIK7JxAYYTUHq5wj91eGKhr4ozgwJY25oLo',
         region: 'us-east-1',
         isDefault: false,
         notes: 'Clúster exclusivo para cuentas de prueba gratuitas',
         createdAt: new Date().toISOString()
       };
       nodes.push(demoNode);
+    } else if (demoNode.url.includes('irwaqwgpyxjxjsexewze')) {
+      // Autocorregir URL obsoleta de demos
+      demoNode.url = 'https://sjmmlbwrghvlexxztkzv.supabase.co';
+      demoNode.anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqbW1sYndyZ2h2bGV4eHp0a3p2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3MzE5NTcsImV4cCI6MjEwMjMwNzk1N30.7MpFfY59WIK7JxAYYTUHq5wj91eGKhr4ozgwJY25oLo';
     }
 
     return nodes;
@@ -330,8 +334,8 @@ export const getAllNodes = () => {
       {
         id: 'node-demos',
         name: 'Nodo 2 - Demos / Pruebas (15 Días)',
-        url: 'https://irwaqwgpyxjxjsexewze.supabase.co',
-        anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlyd2Fxd2dweXhqeGpzZXhld3plIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyMjEyMjksImV4cCI6MjEwMzc5NzIyOX0.9JYbgkHhcjngVWZ1vkkh_Ube85lU-nZqwBFLzro81gU',
+        url: 'https://sjmmlbwrghvlexxztkzv.supabase.co',
+        anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqbW1sYndyZ2h2bGV4eHp0a3p2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3MzE5NTcsImV4cCI6MjEwMjMwNzk1N30.7MpFfY59WIK7JxAYYTUHq5wj91eGKhr4ozgwJY25oLo',
         region: 'us-east-1',
         isDefault: false,
         createdAt: new Date().toISOString()

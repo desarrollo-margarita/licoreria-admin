@@ -315,9 +315,13 @@ export default function ClientGrid({
                             <span className="font-mono font-bold text-slate-300 text-xs">
                               {sub.rifDoc}
                             </span>
-                            {sub.nodeId && sub.nodeId !== 'node-default' && (
-                              <span className="px-1.5 py-0.5 rounded-md bg-purple-500/20 text-purple-300 text-[9px] font-mono font-bold border border-purple-500/30" title={`Asignado al nodo: ${sub.nodeId}`}>
-                                {sub.nodeId}
+                            {sub.nodeId === 'node-demos' ? (
+                              <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 text-[10px] font-mono font-bold border border-purple-500/30 flex items-center gap-1" title="Clúster de Base de Datos: Nodo 2 - Demos / Pruebas">
+                                <span>🟣</span> Demos (15d)
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 text-[10px] font-mono font-bold border border-emerald-500/25 flex items-center gap-1" title="Clúster de Base de Datos: Nodo 1 - Producción">
+                                <span>🟢</span> Producción
                               </span>
                             )}
                           </div>
@@ -551,9 +555,20 @@ export default function ClientGrid({
                         <h4 className="font-black text-white text-base truncate" title={sub.businessName}>
                           {sub.businessName}
                         </h4>
-                        <span className="text-xs font-mono font-bold text-slate-400 block">
-                          {sub.rifDoc}
-                        </span>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-xs font-mono font-bold text-slate-400">
+                            {sub.rifDoc}
+                          </span>
+                          {sub.nodeId === 'node-demos' ? (
+                            <span className="px-1.5 py-0.5 rounded-md bg-purple-500/20 text-purple-300 text-[9px] font-mono font-bold border border-purple-500/30">
+                              🟣 Demos
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 text-[9px] font-mono font-bold border border-emerald-500/25">
+                              🟢 Prod
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
