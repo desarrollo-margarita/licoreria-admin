@@ -317,7 +317,7 @@ export default function ClientGrid({
                             </span>
                             {sub.nodeId === 'node-demos' ? (
                               <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 text-[10px] font-mono font-bold border border-purple-500/30 flex items-center gap-1" title="Clúster de Base de Datos: Nodo 2 - Demos / Pruebas">
-                                <span>🟣</span> Demos (15d)
+                                <span>🟣</span> {sub.planType === 'DEMO' ? 'Demo (15d)' : 'Nodo 2'}
                               </span>
                             ) : (
                               <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 text-[10px] font-mono font-bold border border-emerald-500/25 flex items-center gap-1" title="Clúster de Base de Datos: Nodo 1 - Producción">

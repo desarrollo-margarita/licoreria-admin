@@ -17,6 +17,7 @@ export const fetchAllBusinesses = async () => {
   const cloudList = [];
   let totalRevenue = 0;
   let hasSuccessfulConnection = false;
+  const seenLicenseKeys = new Set();
 
   for (const node of nodes) {
     const supabase = getNodeClient(node.id);
@@ -84,6 +85,9 @@ export const fetchAllBusinesses = async () => {
         const defaultExp = new Date(new Date(biz.created_at || Date.now()).getTime() + defaultDays * 24 * 60 * 60 * 1000);
         const licenseKey = biz.license_key || biz.license || sub.license_key || `VX-${(biz.id || 'DEMO').toString().slice(0, 8).toUpperCase()}`;
 
+        if (seenLicenseKeys.has(licenseKey)) return;
+        seenLicenseKeys.add(licenseKey);
+
         const ltv = ltvMap[biz.id] || ltvMap[licenseKey] || 0;
         const paymentsCount = paymentCountMap[biz.id] || paymentCountMap[licenseKey] || 0;
         const connectedDevices = devicesCountMap[licenseKey] || 0;
@@ -98,9 +102,9 @@ export const fetchAllBusinesses = async () => {
           whatsapp_receipts: true
         };
 
-        const isDemo = (planType || '').toUpperCase() === 'DEMO' || (licenseKey || '').startsWith('VX-DEMO');
-        const resolvedNodeId = isDemo ? 'node-demos' : (biz.node_id || (node.id === 'node-demos' ? 'node-default' : node.id) || 'node-default');
-        const resolvedNodeName = isDemo ? 'Nodo 2 - Demos / Pruebas (15 Días)' : (node.id === 'node-demos' ? 'Nodo 1 - Producción (Clientes Pagos)' : node.name);
+        const isPlanDemo = (planType || '').toUpperCase() === 'DEMO';
+        const resolvedNodeId = isPlanDemo ? (biz.node_id === 'node-default' ? 'node-default' : 'node-demos') : (biz.node_id || 'node-default');
+        const resolvedNodeName = resolvedNodeId === 'node-demos' ? 'Nodo 2 - Demos / Pruebas (15 Días)' : 'Nodo 1 - Producción (Clientes Pagos)';
 
         cloudList.push({
           id: `${resolvedNodeId}_${biz.id || sub.id || Math.random()}`,
@@ -133,13 +137,16 @@ export const fetchAllBusinesses = async () => {
       subsData.forEach(sub => {
         if (!processedIds.has(sub.id)) {
           const licenseKey = sub.license_key || 'VX-PRO-0000';
+          if (seenLicenseKeys.has(licenseKey)) return;
+          seenLicenseKeys.add(licenseKey);
+
           const ltv = ltvMap[sub.business_id] || ltvMap[licenseKey] || 0;
           const paymentsCount = paymentCountMap[sub.business_id] || paymentCountMap[licenseKey] || 0;
           const connectedDevices = devicesCountMap[licenseKey] || 0;
 
-          const isDemoSub = (sub.plan_type || '').toUpperCase() === 'DEMO' || licenseKey.startsWith('VX-DEMO');
-          const resolvedSubNodeId = isDemoSub ? 'node-demos' : 'node-default';
-          const resolvedSubNodeName = isDemoSub ? 'Nodo 2 - Demos / Pruebas (15 Días)' : 'Nodo 1 - Producción (Clientes Pagos)';
+          const isDemoSub = (sub.plan_type || '').toUpperCase() === 'DEMO';
+          const resolvedSubNodeId = isDemoSub ? 'node-demos' : (sub.node_id || 'node-default');
+          const resolvedSubNodeName = resolvedSubNodeId === 'node-demos' ? 'Nodo 2 - Demos / Pruebas (15 Días)' : 'Nodo 1 - Producción (Clientes Pagos)';
 
           cloudList.push({
             id: `${resolvedSubNodeId}_sub_${sub.id}`,
@@ -513,14 +520,25 @@ export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId =
     is_active: 1,
     updated_at: new Date().toISOString()
   };
-  if (targetNodeId) {
-    bizUpdate.node_id = targetNodeId;
-  }
 
-  await sourceClient
-    .from('businesses')
-    .update(bizUpdate)
-    .eq('license_key', licenseKey);
+  try {
+    if (targetNodeId) {
+      await sourceClient
+        .from('businesses')
+        .update({ ...bizUpdate, node_id: targetNodeId })
+        .eq('license_key', licenseKey);
+    } else {
+      await sourceClient
+        .from('businesses')
+        .update(bizUpdate)
+        .eq('license_key', licenseKey);
+    }
+  } catch {
+    await sourceClient
+      .from('businesses')
+      .update(bizUpdate)
+      .eq('license_key', licenseKey);
+  }
 
   await logAuditEvent({
     actionType: 'CAMBIO_PLAN',
