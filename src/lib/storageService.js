@@ -116,6 +116,7 @@ export const fetchAllBusinesses = async () => {
           email: biz.email || biz.correo || sub.email || '',
           contactPerson: biz.contact_person || biz.contacto || '',
           planType,
+          businessType: biz.business_type || biz.rubro || 'licoreria',
           nodeId: resolvedNodeId,
           nodeName: resolvedNodeName,
           status: sub.status || biz.status || (biz.is_active === 0 ? 'SUSPENDIDA' : 'ACTIVA'),
@@ -195,6 +196,7 @@ export const registerBusiness = async ({
   contact,
   email,
   planType,
+  businessType = 'licoreria',
   fee,
   boxes,
   notes,
@@ -253,6 +255,7 @@ export const registerBusiness = async ({
       phone: phone?.trim() || null,
       email: email?.trim() || null,
       contact_person: contact?.trim() || null,
+      business_type: businessType || 'licoreria',
       license_key: licenseKey,
       is_active: 1,
       node_id: nodeId || 'node-default'
@@ -617,6 +620,7 @@ export const updateBusinessInfo = async (licenseKey, updatedData) => {
         phone,
         email,
         contact_person: contact,
+        business_type: updatedData.businessType || undefined,
         updated_at: new Date().toISOString()
       })
       .eq('id', subData.business_id);
@@ -631,6 +635,7 @@ export const updateBusinessInfo = async (licenseKey, updatedData) => {
         phone,
         email,
         contact_person: contact,
+        business_type: updatedData.businessType || undefined,
         updated_at: new Date().toISOString()
       })
       .eq('license_key', licenseKey);

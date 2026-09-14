@@ -8,6 +8,21 @@ import Modal from '../ui/Modal';
 import { registerBusiness } from '../../lib/storageService';
 import { getAllNodes } from '../../lib/supabaseClient';
 
+const BUSINESS_TYPES = [
+  { id: 'licoreria', name: 'Licorería / Bodegón' },
+  { id: 'minimarket', name: 'Minimarket / Abasto / Bodega' },
+  { id: 'carniceria', name: 'Carnicería / Charcutería / Avícola' },
+  { id: 'pescaderia', name: 'Pescadería / Marisquería' },
+  { id: 'panaderia', name: 'Panadería / Pastelería / Cafetería' },
+  { id: 'farmacia', name: 'Farmacia / Droguería' },
+  { id: 'restaurante', name: 'Restaurante / Comida Rápida / Pizzería' },
+  { id: 'ferreteria', name: 'Ferretería / Pinturería / Materiales' },
+  { id: 'ropa_calzado', name: 'Ropa / Zapatería / Boutique' },
+  { id: 'tecnologia', name: 'Tecnología / Telefonía / Accesorios' },
+  { id: 'agua_potable', name: 'Planta Purificadora / Agua Potable & Hielo' },
+  { id: 'general', name: 'Comercio General / Varios' }
+];
+
 export default function NewBusinessModal({ isOpen, onClose, onCreated }) {
   const [name, setName] = useState('');
   const [rif, setRif] = useState('');
@@ -15,6 +30,7 @@ export default function NewBusinessModal({ isOpen, onClose, onCreated }) {
   const [contact, setContact] = useState('');
   const [email, setEmail] = useState('');
   const [planType, setPlanType] = useState('ANUAL');
+  const [businessType, setBusinessType] = useState('licoreria');
   const [nodeId, setNodeId] = useState('node-default');
   const [nodesList, setNodesList] = useState([]);
   const [fee, setFee] = useState('80.00');
@@ -69,6 +85,7 @@ export default function NewBusinessModal({ isOpen, onClose, onCreated }) {
     setContact('');
     setEmail('');
     setPlanType('ANUAL');
+    setBusinessType('licoreria');
     setFee('80.00');
     setBoxes('2');
     setNotes('');
@@ -88,6 +105,7 @@ export default function NewBusinessModal({ isOpen, onClose, onCreated }) {
         contact,
         email,
         planType,
+        businessType,
         fee,
         boxes,
         notes,
@@ -246,6 +264,23 @@ export default function NewBusinessModal({ isOpen, onClose, onCreated }) {
                 {nodesList.map(n => (
                   <option key={n.id} value={n.id}>
                     {n.name} {n.isDefault ? '(Default)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
+                <Store className="w-3.5 h-3.5 text-cyan-400" /> Rubro / Tipo de Comercio (Carga de Categorías en el POS)
+              </label>
+              <select
+                value={businessType}
+                onChange={e => setBusinessType(e.target.value)}
+                className="w-full bg-[#0e0722] border border-white/15 rounded-xl px-4 py-3 text-xs font-bold text-white outline-none focus:border-cyan-400 cursor-pointer transition-colors shadow-sm"
+              >
+                {BUSINESS_TYPES.map(b => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
                   </option>
                 ))}
               </select>

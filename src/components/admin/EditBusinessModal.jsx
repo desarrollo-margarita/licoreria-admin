@@ -7,12 +7,28 @@ import confetti from 'canvas-confetti';
 import Modal from '../ui/Modal';
 import { updateBusinessInfo } from '../../lib/storageService';
 
+const BUSINESS_TYPES = [
+  { id: 'licoreria', name: 'Licorería / Bodegón' },
+  { id: 'minimarket', name: 'Minimarket / Abasto / Bodega' },
+  { id: 'carniceria', name: 'Carnicería / Charcutería / Avícola' },
+  { id: 'pescaderia', name: 'Pescadería / Marisquería' },
+  { id: 'panaderia', name: 'Panadería / Pastelería / Cafetería' },
+  { id: 'farmacia', name: 'Farmacia / Droguería' },
+  { id: 'restaurante', name: 'Restaurante / Comida Rápida / Pizzería' },
+  { id: 'ferreteria', name: 'Ferretería / Pinturería / Materiales' },
+  { id: 'ropa_calzado', name: 'Ropa / Zapatería / Boutique' },
+  { id: 'tecnologia', name: 'Tecnología / Telefonía / Accesorios' },
+  { id: 'agua_potable', name: 'Planta Purificadora / Agua Potable & Hielo' },
+  { id: 'general', name: 'Comercio General / Varios' }
+];
+
 export default function EditBusinessModal({ isOpen, onClose, business, onUpdated }) {
   const [businessName, setBusinessName] = useState('');
   const [rifDoc, setRifDoc] = useState('');
   const [phone, setPhone] = useState('');
   const [contactPerson, setContactPerson] = useState('');
   const [email, setEmail] = useState('');
+  const [businessType, setBusinessType] = useState('licoreria');
   const [maxBoxes, setMaxBoxes] = useState(1);
   const [monthlyFeeUsd, setMonthlyFeeUsd] = useState('80.00');
   const [notes, setNotes] = useState('');
@@ -26,6 +42,7 @@ export default function EditBusinessModal({ isOpen, onClose, business, onUpdated
       setPhone(business.phone || '');
       setContactPerson(business.contactPerson || '');
       setEmail(business.email || '');
+      setBusinessType(business.businessType || business.rubro || 'licoreria');
       setMaxBoxes(business.maxBoxes || 1);
       setMonthlyFeeUsd(business.monthlyFeeUsd !== undefined ? String(business.monthlyFeeUsd) : '80.00');
       setNotes(business.notes || '');
@@ -68,6 +85,7 @@ export default function EditBusinessModal({ isOpen, onClose, business, onUpdated
         phone,
         contactPerson,
         email,
+        businessType,
         maxBoxes,
         monthlyFeeUsd,
         notes
@@ -185,6 +203,25 @@ export default function EditBusinessModal({ isOpen, onClose, business, onUpdated
               placeholder="contacto@negocio.com"
               className="w-full bg-slate-950/80 border border-white/15 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-cyan-400 transition-colors shadow-inner"
             />
+          </div>
+
+          {/* Business Type / Rubro */}
+          <div className="space-y-2 sm:col-span-2">
+            <label className="text-xs font-bold text-slate-300 flex items-center gap-2">
+              <Store className="w-3.5 h-3.5 text-cyan-400" />
+              Rubro / Tipo de Comercio (Define categorías en POS)
+            </label>
+            <select
+              value={businessType}
+              onChange={(e) => setBusinessType(e.target.value)}
+              className="w-full bg-slate-950/80 border border-white/15 rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none focus:border-cyan-400 cursor-pointer transition-colors shadow-inner"
+            >
+              {BUSINESS_TYPES.map(b => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 

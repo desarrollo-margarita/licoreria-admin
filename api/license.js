@@ -66,6 +66,7 @@ export default async function handler(req, res) {
             phone,
             email,
             contact_person,
+            business_type,
             modules_config,
             is_active
           )
@@ -96,6 +97,7 @@ export default async function handler(req, res) {
           status: calculatedStatus,
           license_key: sub.license_key,
           business_name: sub.businesses?.name || 'Comercio Registrado',
+          business_type: sub.businesses?.business_type || 'licoreria',
           rif: sub.businesses?.rif_doc || '',
           contact_person: sub.businesses?.contact_person || '',
           phone: sub.businesses?.phone || '',
