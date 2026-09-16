@@ -9,7 +9,8 @@ import { getSupabaseClient, testSupabaseConnection, SUPABASE_SCHEMA_SQL } from '
 import { 
   fetchAllBusinesses, extendBusinessLicense, toggleBusinessStatusInStorage, 
   exportBusinessesToCsv, fetchGlobalConfig, fetchSupportTickets,
-  approvePendingPayment, rejectPendingPayment, updateBusinessLicenseKey
+  approvePendingPayment, rejectPendingPayment, updateBusinessLicenseKey,
+  deleteBusiness
 } from '../../lib/storageService';
 import { getDaysRemaining, generateLicenseKey } from '../../lib/licenseUtils';
 
@@ -229,6 +230,31 @@ export default function AdminDashboard({ onBackToLanding }) {
       checkAndFetch();
     } catch (err) {
       showToast(`Error al convertir clave: ${err.message}`);
+    }
+  };
+
+  const handleDeleteBusiness = async (biz) => {
+    const confirmName = window.prompt(
+      `⚠️ ACCIÓN IRREVERSIBLE\n\nEstás a punto de eliminar permanentemente el comercio:\n\n  "${biz.businessName}"\n  Clave: ${biz.licenseKey}\n\nSe eliminarán TODOS los datos asociados:\n  • Suscripción y licencia\n  • Historial de pagos\n  • Dispositivos vinculados\n  • Tickets de soporte\n\nPara confirmar, escribe el nombre del comercio exacto:`
+    );
+
+    if (confirmName === null) return;
+
+    if (confirmName.trim().toLowerCase() !== (biz.businessName || '').trim().toLowerCase()) {
+      showToast('❌ El nombre no coincide. Eliminación cancelada.');
+      return;
+    }
+
+    if (!window.confirm(`¿ÚLTIMA CONFIRMACIÓN?\n\nEliminar "${biz.businessName}" y todos sus datos de forma permanente.\n\nEsta acción NO se puede deshacer.`)) {
+      return;
+    }
+
+    try {
+      await deleteBusiness(biz.licenseKey, biz.businessName);
+      showToast(`✅ Comercio "${biz.businessName}" eliminado permanentemente.`);
+      checkAndFetch();
+    } catch (err) {
+      showToast(`❌ Error al eliminar: ${err.message}`);
     }
   };
 
@@ -507,6 +533,7 @@ export default function AdminDashboard({ onBackToLanding }) {
                 onOpenPaymentHistory={(biz) => setSelectedBusinessForHistory(biz)}
                 onOpenDeviceManager={(biz) => setSelectedBusinessForDevices(biz)}
                 onOpenFeatureFlags={(biz) => setSelectedBusinessForFlags(biz)}
+                onDeleteBusiness={handleDeleteBusiness}
                 onExportCsv={(list) => {
                   exportBusinessesToCsv(list);
                   showToast('¡Archivo CSV descargado con éxito!');

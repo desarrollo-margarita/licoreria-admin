@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   Store, Copy, MessageCircle, Play, Pause, Search, Calendar, Sparkles, 
   Edit3, LayoutList, LayoutGrid, Monitor, Check, 
-  DollarSign, Receipt, Download, Sliders, Database, KeyRound, RefreshCw
+  DollarSign, Receipt, Download, Sliders, Database, KeyRound, RefreshCw, Trash2
 } from 'lucide-react';
 import Badge from '../ui/Badge';
 import { formatDate, getDaysRemaining } from '../../lib/licenseUtils';
@@ -27,6 +27,7 @@ export default function ClientGrid({
   onOpenPaymentHistory,
   onOpenDeviceManager,
   onOpenFeatureFlags,
+  onDeleteBusiness,
   onExportCsv
 }) {
   const [viewMode, setViewMode] = useState('list');
@@ -502,7 +503,6 @@ export default function ClientGrid({
                             </button>
                           )}
 
-                          {/* Edit Business Button */}
                           <button
                             type="button"
                             onClick={() => onEditBusiness && onEditBusiness(sub)}
@@ -510,6 +510,16 @@ export default function ClientGrid({
                             title="Editar datos del comercio"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* Delete Business Button */}
+                          <button
+                            type="button"
+                            onClick={() => onDeleteBusiness && onDeleteBusiness(sub)}
+                            className="p-2 rounded-xl bg-red-500/10 hover:bg-red-500/25 text-red-400/70 hover:text-red-300 border border-red-500/15 hover:border-red-500/40 transition-all cursor-pointer opacity-60 hover:opacity-100"
+                            title="Eliminar comercio permanentemente"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
 
                         </div>
@@ -746,6 +756,14 @@ export default function ClientGrid({
                       title="Editar datos del comercio"
                     >
                       <Edit3 className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDeleteBusiness && onDeleteBusiness(sub)}
+                      className="p-2 rounded-xl bg-red-500/10 hover:bg-red-500/25 text-red-400/70 hover:text-red-300 border border-red-500/15 hover:border-red-500/40 transition-all cursor-pointer opacity-60 hover:opacity-100"
+                      title="Eliminar comercio permanentemente"
+                    >
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
 

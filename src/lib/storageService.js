@@ -655,6 +655,79 @@ export const updateBusinessLicenseKey = async (oldLicenseKey, newLicenseKey) => 
 };
 
 /**
+ * Elimina un comercio y todos sus datos asociados (suscripción, pagos, dispositivos) de Supabase.
+ * Usa ON DELETE CASCADE en la base de datos, pero también limpia manualmente las tablas secundarias por seguridad.
+ */
+export const deleteBusiness = async (licenseKey, businessName = '') => {
+  const cleanKey = (licenseKey || '').trim().toUpperCase();
+  if (!cleanKey) {
+    throw new Error('La clave de licencia es obligatoria para eliminar un comercio.');
+  }
+
+  const { client: supabase, nodeId, business } = await getClientForLicense(cleanKey);
+  if (!supabase) {
+    throw new Error('Supabase no está configurado o conectado.');
+  }
+
+  const businessId = business?.id;
+
+  // 1. Eliminar registros secundarios manualmente (por si CASCADE falla o no existe)
+  try {
+    await Promise.allSettled([
+      supabase.from('pos_devices').delete().eq('license_key', cleanKey),
+      supabase.from('payments').delete().eq('license_key', cleanKey),
+      supabase.from('support_tickets').delete().eq('license_key', cleanKey),
+    ]);
+  } catch (e) {
+    console.warn('Aviso al limpiar tablas secundarias:', e);
+  }
+
+  // 2. Eliminar suscripción
+  const { error: subErr } = await supabase
+    .from('subscriptions')
+    .delete()
+    .eq('license_key', cleanKey);
+
+  if (subErr) {
+    console.warn('Error al eliminar suscripción:', subErr.message);
+  }
+
+  // 3. Eliminar el comercio principal (esto también activaría CASCADE)
+  let deleted = false;
+  if (businessId) {
+    const { error: bizErr } = await supabase
+      .from('businesses')
+      .delete()
+      .eq('id', businessId);
+
+    if (bizErr) {
+      throw new Error(`Error al eliminar comercio: ${bizErr.message}`);
+    }
+    deleted = true;
+  } else {
+    // Intentar eliminar por license_key directamente
+    const { error: bizErr } = await supabase
+      .from('businesses')
+      .delete()
+      .eq('license_key', cleanKey);
+
+    if (bizErr) {
+      throw new Error(`Error al eliminar comercio: ${bizErr.message}`);
+    }
+    deleted = true;
+  }
+
+  // 4. Log de auditoría
+  await logAuditEvent({
+    actionType: 'ELIMINAR_COMERCIO',
+    description: `Comercio "${businessName}" eliminado permanentemente (Clave: ${cleanKey}, Nodo: ${nodeId})`,
+    targetBusiness: businessName || cleanKey
+  });
+
+  return { success: true, deleted, licenseKey: cleanKey, nodeId };
+};
+
+/**
  * Suspende o reactiva un comercio directamente en Supabase
  */
 export const toggleBusinessStatusInStorage = async (licenseKey, currentStatus) => {
