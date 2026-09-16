@@ -144,18 +144,16 @@ export default function EditBusinessModal({ isOpen, onClose, business, onUpdated
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {isDemoKey && (
-              <button
-                type="button"
-                onClick={handleConvertToProKey}
-                disabled={convertingKey}
-                title="Generar una clave Pro Oficial sin la palabra DEMO"
-                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 text-[11px] font-black flex items-center gap-1.5 shadow-md shadow-emerald-500/20 cursor-pointer disabled:opacity-50 transition-all"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${convertingKey ? 'animate-spin' : ''}`} />
-                <span>{convertingKey ? 'MIGRANDO...' : 'GENERAR CLAVE PRO OFICIAL'}</span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={handleConvertToProKey}
+              disabled={convertingKey}
+              title={isDemoKey ? "Generar una clave Pro Oficial sin la palabra DEMO" : "Generar una nueva clave de licencia Pro"}
+              className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 text-[11px] font-black flex items-center gap-1.5 shadow-md shadow-emerald-500/20 cursor-pointer disabled:opacity-50 transition-all"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${convertingKey ? 'animate-spin' : ''}`} />
+              <span>{convertingKey ? 'MIGRANDO...' : (isDemoKey ? 'GENERAR CLAVE PRO OFICIAL' : 'REGENERAR CLAVE PRO')}</span>
+            </button>
             <span className="text-[10px] font-black uppercase px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
               Plan {business.planType || 'OFICIAL'}
             </span>
