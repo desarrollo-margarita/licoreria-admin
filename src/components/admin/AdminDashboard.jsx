@@ -234,18 +234,14 @@ export default function AdminDashboard({ onBackToLanding }) {
   };
 
   const handleDeleteBusiness = async (biz) => {
-    const confirmName = window.prompt(
-      `⚠️ ACCIÓN IRREVERSIBLE\n\nEstás a punto de eliminar permanentemente el comercio:\n\n  "${biz.businessName}"\n  Clave: ${biz.licenseKey}\n\nSe eliminarán TODOS los datos asociados:\n  • Suscripción y licencia\n  • Historial de pagos\n  • Dispositivos vinculados\n  • Tickets de soporte\n\nPara confirmar, escribe el nombre del comercio exacto:`
+    const devPass = window.prompt(
+      `⚠️ ELIMINAR COMERCIO PERMANENTEMENTE\n\nEstás a punto de eliminar:\n  "${biz.businessName}"\n  Clave: ${biz.licenseKey}\n\nSe eliminarán todos los datos asociados (suscripción, pagos, dispositivos, etc.).\n\nPara confirmar, introduce la contraseña de desarrollador:`
     );
 
-    if (confirmName === null) return;
+    if (devPass === null) return;
 
-    if (confirmName.trim().toLowerCase() !== (biz.businessName || '').trim().toLowerCase()) {
-      showToast('❌ El nombre no coincide. Eliminación cancelada.');
-      return;
-    }
-
-    if (!window.confirm(`¿ÚLTIMA CONFIRMACIÓN?\n\nEliminar "${biz.businessName}" y todos sus datos de forma permanente.\n\nEsta acción NO se puede deshacer.`)) {
+    if (devPass.trim() !== 'apostadero') {
+      showToast('❌ Contraseña de desarrollador incorrecta. Eliminación cancelada.');
       return;
     }
 
