@@ -95,7 +95,17 @@ export const fetchAllBusinesses = async () => {
         if (planType === 'DEMO') defaultDays = 15;
 
         const defaultExp = new Date(new Date(biz.created_at || Date.now()).getTime() + defaultDays * 24 * 60 * 60 * 1000);
-        const licenseKey = biz.license_key || biz.license || sub.license_key || `VX-${(biz.id || 'DEMO').toString().slice(0, 8).toUpperCase()}`;
+        
+        const subKey = (sub.license_key || '').trim().toUpperCase();
+        const bizKey = (biz.license_key || biz.license || '').trim().toUpperCase();
+        let licenseKey = '';
+        if (subKey && !subKey.includes('DEMO')) {
+          licenseKey = subKey;
+        } else if (bizKey && !bizKey.includes('DEMO')) {
+          licenseKey = bizKey;
+        } else {
+          licenseKey = subKey || bizKey || `VX-${(biz.id || 'DEMO').toString().slice(0, 8).toUpperCase()}`;
+        }
 
         if (seenLicenseKeys.has(licenseKey)) return;
         seenLicenseKeys.add(licenseKey);
@@ -415,12 +425,24 @@ export const extendBusinessLicense = extendBusinessSubscription;
  * Cambia el plan único de un comercio directamente en Supabase
  */
 export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId = null, newLicenseKey = null) => {
-  const { client: sourceClient, nodeId: sourceNodeId } = await getClientForLicense(licenseKey);
+  const cleanOldKey = (licenseKey || '').trim().toUpperCase();
+  const { client: sourceClient, nodeId: sourceNodeId, business } = await getClientForLicense(cleanOldKey);
   if (!sourceClient) {
     throw new Error('Supabase no está configurado o conectado.');
   }
 
-  const cleanFinalKey = (newLicenseKey || licenseKey).trim().toUpperCase();
+  const isDemoKey = cleanOldKey.includes('DEMO');
+  const isUpgradingToPaid = newPlanType !== 'DEMO' && (isDemoKey || sourceNodeId === 'node-demos');
+
+  // Si pasa a plan de pago y tenía clave DEMO o no se suministró nueva clave, generar automáticamente la clave Pro oficial
+  let cleanFinalKey = (newLicenseKey || '').trim().toUpperCase();
+  if (!cleanFinalKey || (isUpgradingToPaid && cleanFinalKey.includes('DEMO'))) {
+    if (isUpgradingToPaid) {
+      cleanFinalKey = generateLicenseKey();
+    } else {
+      cleanFinalKey = cleanOldKey;
+    }
+  }
 
   let fee = 80.00;
   let boxes = 2;
@@ -446,6 +468,12 @@ export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId =
 
   const expDate = new Date();
   expDate.setDate(expDate.getDate() + days);
+
+  // Asegurar clúster de producción si pasa a plan pago y estaba en demo
+  let effectiveTargetNodeId = targetNodeId;
+  if (!effectiveTargetNodeId || (isUpgradingToPaid && effectiveTargetNodeId === 'node-demos')) {
+    effectiveTargetNodeId = 'node-default';
+  }
 
   // Si hay reasignación de clúster a otro nodo diferente
   if (targetNodeId && targetNodeId !== sourceNodeId) {
@@ -477,6 +505,11 @@ export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId =
           .single();
 
         // Inyectar suscripción en nodo destino
+        // Inyectar suscripción en nodo destino
+        const migrationNote = cleanFinalKey !== cleanOldKey ? `[Clave demo anterior: ${cleanOldKey}]` : '';
+        const existingNotes = (bizData.notes || '').trim();
+        const combinedNotes = existingNotes ? (existingNotes.includes(cleanOldKey) ? existingNotes : `${existingNotes} ${migrationNote}`) : migrationNote;
+
         await targetClient
           .from('subscriptions')
           .upsert({
@@ -487,15 +520,27 @@ export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId =
             max_boxes: boxes,
             status: 'ACTIVA',
             expiration_date: expDate.toISOString(),
+            notes: combinedNotes || null,
             updated_at: new Date().toISOString()
           }, { onConflict: 'license_key' });
 
-        // Eliminar del nodo origen para liberar cuota demo (primero suscripción por FK)
-        await sourceClient.from('subscriptions').delete().eq('license_key', licenseKey);
-        await sourceClient.from('businesses').delete().eq('license_key', licenseKey);
+        // Eliminar del nodo origen para liberar cuota demo
+        await sourceClient.from('subscriptions').delete().eq('license_key', cleanOldKey);
+        await sourceClient.from('businesses').delete().eq('license_key', cleanOldKey);
       }
     } else {
       // Misma base de datos física: actualizar en el cliente actual directamente
+      const migrationNote = cleanFinalKey !== cleanOldKey ? `[Clave demo anterior: ${cleanOldKey}]` : '';
+      
+      const { data: currentSub } = await targetClient
+        .from('subscriptions')
+        .select('notes')
+        .eq('license_key', cleanOldKey)
+        .maybeSingle();
+
+      const existingNotes = (currentSub?.notes || '').trim();
+      const combinedNotes = existingNotes ? (existingNotes.includes(cleanOldKey) ? existingNotes : `${existingNotes} ${migrationNote}`) : migrationNote;
+
       await targetClient
         .from('subscriptions')
         .update({
@@ -505,27 +550,29 @@ export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId =
           max_boxes: boxes,
           status: 'ACTIVA',
           expiration_date: expDate.toISOString(),
+          notes: combinedNotes || null,
           updated_at: new Date().toISOString()
         })
-        .eq('license_key', licenseKey);
+        .eq('license_key', cleanOldKey);
 
       const bizUpdatePayload = {
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        is_active: 1
       };
-      if (targetNodeId) bizUpdatePayload.node_id = targetNodeId;
-      if (cleanFinalKey !== licenseKey) bizUpdatePayload.license_key = cleanFinalKey;
+      if (effectiveTargetNodeId) bizUpdatePayload.node_id = effectiveTargetNodeId;
+      if (cleanFinalKey !== cleanOldKey) bizUpdatePayload.license_key = cleanFinalKey;
 
       await targetClient
         .from('businesses')
         .update(bizUpdatePayload)
-        .eq('license_key', licenseKey);
+        .eq('license_key', cleanOldKey);
 
-      if (cleanFinalKey !== licenseKey) {
+      if (cleanFinalKey !== cleanOldKey) {
         try {
           await Promise.allSettled([
-            targetClient.from('payments').update({ license_key: cleanFinalKey }).eq('license_key', licenseKey),
-            targetClient.from('pos_devices').update({ license_key: cleanFinalKey }).eq('license_key', licenseKey),
-            targetClient.from('support_tickets').update({ license_key: cleanFinalKey }).eq('license_key', licenseKey)
+            targetClient.from('payments').update({ license_key: cleanFinalKey }).eq('license_key', cleanOldKey),
+            targetClient.from('pos_devices').update({ license_key: cleanFinalKey }).eq('license_key', cleanOldKey),
+            targetClient.from('support_tickets').update({ license_key: cleanFinalKey }).eq('license_key', cleanOldKey)
           ]);
         } catch {}
       }
@@ -533,14 +580,24 @@ export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId =
 
     await logAuditEvent({
       actionType: 'PROMOCION_NODO',
-      description: `Comercio ${licenseKey} promovido de ${sourceNodeId} a ${targetNodeId} con plan ${newPlanType}${cleanFinalKey !== licenseKey ? ` (Nueva Clave: ${cleanFinalKey})` : ''}`,
+      description: `Comercio ${cleanOldKey} promovido de ${sourceNodeId} a ${effectiveTargetNodeId} con plan ${newPlanType}${cleanFinalKey !== cleanOldKey ? ` (Nueva Clave: ${cleanFinalKey})` : ''}`,
       targetBusiness: cleanFinalKey
     });
 
-    return { success: true, newPlanType, fee, boxes, expirationDate: expDate, nodeId: targetNodeId, licenseKey: cleanFinalKey };
+    return { success: true, newPlanType, fee, boxes, expirationDate: expDate, nodeId: effectiveTargetNodeId, licenseKey: cleanFinalKey };
   }
 
   // Actualización en el mismo nodo
+  const migrationNote = cleanFinalKey !== cleanOldKey ? `[Clave demo anterior: ${cleanOldKey}]` : '';
+  const { data: currentSub } = await sourceClient
+    .from('subscriptions')
+    .select('notes')
+    .eq('license_key', cleanOldKey)
+    .maybeSingle();
+
+  const existingNotes = (currentSub?.notes || '').trim();
+  const combinedNotes = existingNotes ? (existingNotes.includes(cleanOldKey) ? existingNotes : `${existingNotes} ${migrationNote}`) : migrationNote;
+
   const { error: subErr } = await sourceClient
     .from('subscriptions')
     .update({
@@ -550,9 +607,10 @@ export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId =
       max_boxes: boxes,
       status: 'ACTIVA',
       expiration_date: expDate.toISOString(),
+      notes: combinedNotes || null,
       updated_at: new Date().toISOString()
     })
-    .eq('license_key', licenseKey);
+    .eq('license_key', cleanOldKey);
 
   if (subErr) {
     throw new Error(`Error al cambiar plan en Supabase: ${subErr.message}`);
@@ -561,45 +619,32 @@ export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId =
   const bizUpdate = {
     license_key: cleanFinalKey,
     is_active: 1,
+    node_id: effectiveTargetNodeId || 'node-default',
     updated_at: new Date().toISOString()
   };
 
-  try {
-    if (targetNodeId) {
-      await sourceClient
-        .from('businesses')
-        .update({ ...bizUpdate, node_id: targetNodeId })
-        .eq('license_key', licenseKey);
-    } else {
-      await sourceClient
-        .from('businesses')
-        .update(bizUpdate)
-        .eq('license_key', licenseKey);
-    }
-  } catch {
-    await sourceClient
-      .from('businesses')
-      .update(bizUpdate)
-      .eq('license_key', licenseKey);
-  }
+  await sourceClient
+    .from('businesses')
+    .update(bizUpdate)
+    .eq('license_key', cleanOldKey);
 
-  if (cleanFinalKey !== licenseKey) {
+  if (cleanFinalKey !== cleanOldKey) {
     try {
       await Promise.allSettled([
-        sourceClient.from('payments').update({ license_key: cleanFinalKey }).eq('license_key', licenseKey),
-        sourceClient.from('pos_devices').update({ license_key: cleanFinalKey }).eq('license_key', licenseKey),
-        sourceClient.from('support_tickets').update({ license_key: cleanFinalKey }).eq('license_key', licenseKey)
+        sourceClient.from('payments').update({ license_key: cleanFinalKey }).eq('license_key', cleanOldKey),
+        sourceClient.from('pos_devices').update({ license_key: cleanFinalKey }).eq('license_key', cleanOldKey),
+        sourceClient.from('support_tickets').update({ license_key: cleanFinalKey }).eq('license_key', cleanOldKey)
       ]);
     } catch {}
   }
 
   await logAuditEvent({
     actionType: 'CAMBIO_PLAN',
-    description: `Plan cambiado a ${newPlanType} ($${fee}) para ${licenseKey}${cleanFinalKey !== licenseKey ? ` -> Nueva clave: ${cleanFinalKey}` : ''}${targetNodeId ? ` · Clúster: ${targetNodeId}` : ''}`,
+    description: `Plan cambiado a ${newPlanType} ($${fee}) para ${cleanOldKey}${cleanFinalKey !== cleanOldKey ? ` -> Nueva clave: ${cleanFinalKey}` : ''}${effectiveTargetNodeId ? ` · Clúster: ${effectiveTargetNodeId}` : ''}`,
     targetBusiness: cleanFinalKey
   });
 
-  return { success: true, newPlanType, fee, boxes, expirationDate: expDate, nodeId: targetNodeId, licenseKey: cleanFinalKey };
+  return { success: true, newPlanType, fee, boxes, expirationDate: expDate, nodeId: effectiveTargetNodeId, licenseKey: cleanFinalKey };
 };
 
 /**

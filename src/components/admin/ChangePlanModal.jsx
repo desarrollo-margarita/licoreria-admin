@@ -31,11 +31,11 @@ export default function ChangePlanModal({
       const isDemoKey = (business?.licenseKey || '').toUpperCase().includes('DEMO');
       const isDemoPlan = business?.planType === 'DEMO' || business?.nodeId === 'node-demos';
       
-      // Si era demo y sube a plan pago, sugerir nodo produccion y regenerar clave
+      // Si era demo y sube a plan pago, sugerir nodo produccion y pre-generar clave Pro oficial
       if (isDemoPlan || isDemoKey) {
         const prodNode = allNodes.find(n => n.id === 'node-default') || allNodes[0];
         if (prodNode) setTargetNodeId(prodNode.id);
-        setRegenerateKey(isDemoKey);
+        setRegenerateKey(true);
         setGeneratedKeyPreview(generateLicenseKey());
       } else {
         setTargetNodeId(business?.nodeId || 'node-default');
@@ -89,8 +89,11 @@ export default function ChangePlanModal({
   const calculatedNewExp = new Date();
   calculatedNewExp.setDate(calculatedNewExp.getDate() + newPlanObj.days);
 
+  const isDemo = (business?.licenseKey || '').toUpperCase().includes('DEMO') || business?.planType === 'DEMO' || business?.nodeId === 'node-demos';
+  const isUpgradingDemo = isDemo && selectedPlan !== 'DEMO';
+
   const handleConfirmChange = async () => {
-    if (selectedPlan === currentPlan && targetNodeId === business?.nodeId && !regenerateKey) {
+    if (selectedPlan === currentPlan && targetNodeId === business?.nodeId && !regenerateKey && !isUpgradingDemo) {
       onClose();
       return;
     }
@@ -99,7 +102,10 @@ export default function ChangePlanModal({
     setErrorMsg('');
 
     try {
-      const finalNewKey = regenerateKey ? (generatedKeyPreview || generateLicenseKey()) : null;
+      const finalNewKey = isUpgradingDemo 
+        ? (generatedKeyPreview || generateLicenseKey()) 
+        : (regenerateKey ? (generatedKeyPreview || generateLicenseKey()) : null);
+      
       const res = await changeBusinessPlan(business.licenseKey, selectedPlan, targetNodeId, finalNewKey);
       
       try {
@@ -258,40 +264,68 @@ export default function ChangePlanModal({
           </p>
         </div>
 
-        {/* License Key Migration Option (Clean Pro Key Format) */}
-        <div className={`p-4 rounded-2xl border transition-all ${
-          regenerateKey 
-            ? 'bg-cyan-500/10 border-cyan-500/30' 
-            : 'bg-slate-950/60 border-white/10'
-        }`}>
-          <label className="flex items-start gap-3 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={regenerateKey}
-              onChange={e => setRegenerateKey(e.target.checked)}
-              className="mt-1 w-4 h-4 rounded text-cyan-500 focus:ring-cyan-400 bg-slate-900 border-white/20 cursor-pointer"
-            />
-            <div className="space-y-1">
-              <div className="text-xs font-bold text-white flex items-center gap-2">
-                <KeyRound className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Generar Clave Pro Oficial (Formato VX-2026-XXXX-XXXX)</span>
-              </div>
-              <p className="text-[11px] text-slate-400 leading-relaxed">
-                {(business.licenseKey || '').toUpperCase().includes('DEMO')
-                  ? 'Recomendado: La clave actual contiene "DEMO". Al activar esta casilla, se actualizará a una clave Pro limpia en toda la nube.'
-                  : 'Reemplaza la clave actual por una nueva clave Pro aleatoria.'}
-              </p>
-              {regenerateKey && (
-                <div className="pt-2 flex items-center gap-2">
-                  <span className="text-[11px] text-slate-400">Nueva Clave Propuesta:</span>
-                  <span className="font-mono text-xs font-black text-cyan-300 bg-slate-900 px-2.5 py-1 rounded-lg border border-cyan-500/30">
-                    {generatedKeyPreview}
-                  </span>
-                </div>
-              )}
+        {/* License Key Migration Section (Automatic for Demo -> Paid, Optional for Pro) */}
+        {isUpgradingDemo ? (
+          <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-start gap-3 shadow-inner">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center flex-shrink-0 mt-0.5">
+              <Sparkles className="w-4 h-4 text-emerald-400" />
             </div>
-          </label>
-        </div>
+            <div className="space-y-1.5">
+              <div className="text-xs font-bold text-emerald-300 flex items-center gap-2">
+                <span>Actualización Automática a Clave Pro Oficial</span>
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-black uppercase tracking-wider border border-emerald-500/30">
+                  Automático
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                Al promover desde el plan Demo, la clave temporal (<span className="font-mono text-amber-300 line-through">{business.licenseKey}</span>) se convertirá automáticamente en una clave Pro oficial limpia:
+              </p>
+              <div className="pt-1 flex items-center gap-2">
+                <span className="text-[11px] text-slate-400">Nueva Clave Oficial Asignada:</span>
+                <span className="font-mono text-xs font-black text-emerald-300 bg-slate-950 px-2.5 py-1 rounded-lg border border-emerald-500/40 shadow-sm">
+                  {generatedKeyPreview || 'Generando...'}
+                </span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className={`p-4 rounded-2xl border transition-all ${
+            regenerateKey 
+              ? 'bg-cyan-500/10 border-cyan-500/30' 
+              : 'bg-slate-950/60 border-white/10'
+          }`}>
+            <label className="flex items-start gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={regenerateKey}
+                onChange={e => {
+                  setRegenerateKey(e.target.checked);
+                  if (e.target.checked && !generatedKeyPreview) {
+                    setGeneratedKeyPreview(generateLicenseKey());
+                  }
+                }}
+                className="mt-1 w-4 h-4 rounded text-cyan-500 focus:ring-cyan-400 bg-slate-900 border-white/20 cursor-pointer"
+              />
+              <div className="space-y-1">
+                <div className="text-xs font-bold text-white flex items-center gap-2">
+                  <KeyRound className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Regenerar Clave Pro (Opcional)</span>
+                </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Reemplaza la clave actual por una nueva clave Pro aleatoria.
+                </p>
+                {regenerateKey && (
+                  <div className="pt-2 flex items-center gap-2">
+                    <span className="text-[11px] text-slate-400">Nueva Clave Propuesta:</span>
+                    <span className="font-mono text-xs font-black text-cyan-300 bg-slate-900 px-2.5 py-1 rounded-lg border border-cyan-500/30">
+                      {generatedKeyPreview}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </label>
+          </div>
+        )}
 
         {/* Impact Summary & Confirmation Alert */}
         <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 space-y-3 shadow-inner">

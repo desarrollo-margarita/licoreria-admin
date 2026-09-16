@@ -48,7 +48,7 @@ export default async function handler(req, res) {
         auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
       });
 
-      const { data: sub, error } = await client
+      let { data: sub, error } = await client
         .from('subscriptions')
         .select(`
           *,
@@ -57,7 +57,23 @@ export default async function handler(req, res) {
         .eq('license_key', searchKey)
         .maybeSingle();
 
-      if (!error && sub) {
+      // Si no se encuentra por clave directa, buscar si searchKey fue una clave demo anterior registrada en notas
+      if (!sub) {
+        const { data: subByNotes } = await client
+          .from('subscriptions')
+          .select(`
+            *,
+            businesses (*)
+          `)
+          .ilike('notes', `%${searchKey}%`)
+          .maybeSingle();
+
+        if (subByNotes) {
+          sub = subByNotes;
+        }
+      }
+
+      if (sub) {
         const expDate = new Date(sub.expiration_date);
         const now = new Date();
         const diffMs = expDate.getTime() - now.getTime();
