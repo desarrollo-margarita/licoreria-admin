@@ -509,11 +509,25 @@ export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId =
         })
         .eq('license_key', licenseKey);
 
+      const bizUpdatePayload = {
+        updated_at: new Date().toISOString()
+      };
+      if (targetNodeId) bizUpdatePayload.node_id = targetNodeId;
+      if (cleanFinalKey !== licenseKey) bizUpdatePayload.license_key = cleanFinalKey;
+
+      await targetClient
+        .from('businesses')
+        .update(bizUpdatePayload)
+        .eq('license_key', licenseKey);
+
       if (cleanFinalKey !== licenseKey) {
-        await targetClient
-          .from('businesses')
-          .update({ license_key: cleanFinalKey, updated_at: new Date().toISOString() })
-          .eq('license_key', licenseKey);
+        try {
+          await Promise.allSettled([
+            targetClient.from('payments').update({ license_key: cleanFinalKey }).eq('license_key', licenseKey),
+            targetClient.from('pos_devices').update({ license_key: cleanFinalKey }).eq('license_key', licenseKey),
+            targetClient.from('support_tickets').update({ license_key: cleanFinalKey }).eq('license_key', licenseKey)
+          ]);
+        } catch {}
       }
     }
 
