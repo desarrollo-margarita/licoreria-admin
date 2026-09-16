@@ -51,25 +51,8 @@ export default async function handler(req, res) {
       const { data: sub, error } = await client
         .from('subscriptions')
         .select(`
-          id,
-          license_key,
-          plan_type,
-          status,
-          monthly_fee_usd,
-          max_boxes,
-          start_date,
-          expiration_date,
-          businesses (
-            id,
-            name,
-            rif_doc,
-            phone,
-            email,
-            contact_person,
-            business_type,
-            modules_config,
-            is_active
-          )
+          *,
+          businesses (*)
         `)
         .eq('license_key', searchKey)
         .maybeSingle();
@@ -87,17 +70,28 @@ export default async function handler(req, res) {
         if (isSuspended) calculatedStatus = 'SUSPENDIDA';
         else if (isExpired) calculatedStatus = 'VENCIDA';
 
-        const isDemo = (sub.plan_type || '').toUpperCase() === 'DEMO' || searchKey.startsWith('VX-DEMO');
-        const assignedNode = isDemo
-          ? (CLUSTER_NODES.find(n => n.id === 'node-demos') || node)
-          : (CLUSTER_NODES.find(n => n.id === 'node-default') || node);
+        const isDemo = (sub.plan_type || '').toUpperCase() === 'DEMO';
+        let assignedNode = node;
+        if (sub.businesses?.node_id) {
+          assignedNode = CLUSTER_NODES.find(n => n.id === sub.businesses.node_id) || node;
+        } else if (isDemo) {
+          assignedNode = CLUSTER_NODES.find(n => n.id === 'node-demos') || node;
+        } else {
+          assignedNode = CLUSTER_NODES.find(n => n.id === 'node-default') || node;
+        }
+
+        let resolvedBusinessType = sub.businesses?.business_type || 'licoreria';
+        if (!sub.businesses?.business_type && sub.notes) {
+          const match = sub.notes.match(/Rubro:\s*([a-zA-Z0-9_]+)/i);
+          if (match && match[1]) resolvedBusinessType = match[1];
+        }
 
         return res.status(200).json({
           ok: true,
           status: calculatedStatus,
           license_key: sub.license_key,
           business_name: sub.businesses?.name || 'Comercio Registrado',
-          business_type: sub.businesses?.business_type || 'licoreria',
+          business_type: resolvedBusinessType,
           rif: sub.businesses?.rif_doc || '',
           contact_person: sub.businesses?.contact_person || '',
           phone: sub.businesses?.phone || '',

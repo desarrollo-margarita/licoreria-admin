@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Store, KeyRound, User, Phone, Mail, FileText, DollarSign, Monitor, 
-  Sparkles, CheckCircle2, AlertTriangle, Plus, Minus, Save, X
+  Sparkles, CheckCircle2, AlertTriangle, Plus, Minus, Save, X, RefreshCw
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import Modal from '../ui/Modal';
-import { updateBusinessInfo } from '../../lib/storageService';
+import { updateBusinessInfo, updateBusinessLicenseKey } from '../../lib/storageService';
+import { generateLicenseKey } from '../../lib/licenseUtils';
 
 const BUSINESS_TYPES = [
   { id: 'licoreria', name: 'Licorería / Bodegón' },
@@ -32,6 +33,8 @@ export default function EditBusinessModal({ isOpen, onClose, business, onUpdated
   const [maxBoxes, setMaxBoxes] = useState(1);
   const [monthlyFeeUsd, setMonthlyFeeUsd] = useState('80.00');
   const [notes, setNotes] = useState('');
+  const [currentKey, setCurrentKey] = useState('');
+  const [convertingKey, setConvertingKey] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -46,6 +49,7 @@ export default function EditBusinessModal({ isOpen, onClose, business, onUpdated
       setMaxBoxes(business.maxBoxes || 1);
       setMonthlyFeeUsd(business.monthlyFeeUsd !== undefined ? String(business.monthlyFeeUsd) : '80.00');
       setNotes(business.notes || '');
+      setCurrentKey(business.licenseKey || '');
       setErrorMsg('');
     }
   }, [business, isOpen]);
@@ -68,6 +72,27 @@ export default function EditBusinessModal({ isOpen, onClose, business, onUpdated
     setMaxBoxes(prev => Math.max(1, Math.min(20, prev + delta)));
   };
 
+  const handleConvertToProKey = async () => {
+    const newProKey = generateLicenseKey();
+    if (!window.confirm(`¿Confirmas cambiar la clave de "${currentKey}" a la nueva clave Pro Oficial "${newProKey}"? Esto actualizará todas las tablas en la nube.`)) {
+      return;
+    }
+
+    setConvertingKey(true);
+    setErrorMsg('');
+
+    try {
+      const res = await updateBusinessLicenseKey(currentKey, newProKey);
+      setCurrentKey(res.newLicenseKey);
+      triggerConfetti();
+      onUpdated(`Clave de licencia actualizada a "${res.newLicenseKey}"`);
+    } catch (err) {
+      setErrorMsg('Error al convertir clave: ' + (err.message || 'Intente de nuevo.'));
+    } finally {
+      setConvertingKey(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!businessName.trim()) {
@@ -79,7 +104,7 @@ export default function EditBusinessModal({ isOpen, onClose, business, onUpdated
     setLoading(true);
 
     try {
-      await updateBusinessInfo(business.licenseKey, {
+      await updateBusinessInfo(currentKey, {
         businessName,
         rifDoc,
         phone,
@@ -101,25 +126,53 @@ export default function EditBusinessModal({ isOpen, onClose, business, onUpdated
     }
   };
 
+  const isDemoKey = (currentKey || '').toUpperCase().includes('DEMO');
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Editar Datos del Comercio" maxWidth="max-w-2xl">
       <form onSubmit={handleSubmit} className="space-y-6">
         
         {/* Info Banner on Active Plan and Key */}
-        <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-500/10 via-cyan-500/10 to-transparent border border-white/10 flex items-center justify-between gap-4">
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-500/10 via-cyan-500/10 to-transparent border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-cyan-500/20 text-cyan-300 flex items-center justify-center flex-shrink-0">
               <KeyRound className="w-5 h-5" />
             </div>
             <div>
               <div className="text-[10px] uppercase font-bold text-slate-400">Licencia Asignada</div>
-              <div className="font-mono text-xs font-black text-cyan-300 select-all">{business.licenseKey}</div>
+              <div className="font-mono text-xs font-black text-cyan-300 select-all">{currentKey}</div>
             </div>
           </div>
-          <span className="text-[10px] font-black uppercase px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
-            Plan {business.planType || 'OFICIAL'}
-          </span>
+          <div className="flex items-center gap-2">
+            {isDemoKey && (
+              <button
+                type="button"
+                onClick={handleConvertToProKey}
+                disabled={convertingKey}
+                title="Generar una clave Pro Oficial sin la palabra DEMO"
+                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 text-[11px] font-black flex items-center gap-1.5 shadow-md shadow-emerald-500/20 cursor-pointer disabled:opacity-50 transition-all"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${convertingKey ? 'animate-spin' : ''}`} />
+                <span>{convertingKey ? 'MIGRANDO...' : 'GENERAR CLAVE PRO OFICIAL'}</span>
+              </button>
+            )}
+            <span className="text-[10px] font-black uppercase px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
+              Plan {business.planType || 'OFICIAL'}
+            </span>
+          </div>
         </div>
+
+        {isDemoKey && (
+          <div className="p-3.5 rounded-2xl bg-cyan-500/10 border border-cyan-500/25 flex items-start gap-2.5 text-xs text-cyan-200">
+            <Sparkles className="w-4 h-4 text-cyan-400 flex-shrink-0 mt-0.5" />
+            <div className="space-y-0.5">
+              <span className="font-bold">Aviso de Clave:</span>
+              <p className="text-[11px] opacity-90 leading-relaxed">
+                Esta licencia aún conserva el nombre de prueba temporal. Puedes presionar <strong>"GENERAR CLAVE PRO OFICIAL"</strong> para asignarle un código limpio como <span className="font-mono font-bold text-white">VX-2026-XXXX-XXXX</span> sin perder ningún dato.
+              </p>
+            </div>
+          </div>
+        )}
 
         {errorMsg && (
           <div className="p-4 rounded-2xl bg-red-500/15 border border-red-500/30 text-red-300 text-xs flex items-center gap-3 animate-shake">

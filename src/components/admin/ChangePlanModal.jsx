@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Sparkles, AlertTriangle, ShieldCheck, ArrowRight, Database
+  Sparkles, AlertTriangle, ShieldCheck, ArrowRight, Database, KeyRound, Check
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import Modal from '../ui/Modal';
 import { changeBusinessPlan } from '../../lib/storageService';
 import { getAllNodes } from '../../lib/supabaseClient';
-import { formatDate } from '../../lib/licenseUtils';
+import { formatDate, generateLicenseKey } from '../../lib/licenseUtils';
 
 export default function ChangePlanModal({
   isOpen,
@@ -18,6 +18,8 @@ export default function ChangePlanModal({
   const [selectedPlan, setSelectedPlan] = useState(currentPlan);
   const [targetNodeId, setTargetNodeId] = useState(business?.nodeId || 'node-default');
   const [nodesList, setNodesList] = useState([]);
+  const [regenerateKey, setRegenerateKey] = useState(false);
+  const [generatedKeyPreview, setGeneratedKeyPreview] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -25,12 +27,20 @@ export default function ChangePlanModal({
     if (isOpen) {
       const allNodes = getAllNodes();
       setNodesList(allNodes);
-      // Si era demo y sube a plan pago, sugerir nodo produccion
-      if (business?.planType === 'DEMO' || business?.nodeId === 'node-demos') {
+      
+      const isDemoKey = (business?.licenseKey || '').toUpperCase().includes('DEMO');
+      const isDemoPlan = business?.planType === 'DEMO' || business?.nodeId === 'node-demos';
+      
+      // Si era demo y sube a plan pago, sugerir nodo produccion y regenerar clave
+      if (isDemoPlan || isDemoKey) {
         const prodNode = allNodes.find(n => n.id === 'node-default') || allNodes[0];
         if (prodNode) setTargetNodeId(prodNode.id);
+        setRegenerateKey(isDemoKey);
+        setGeneratedKeyPreview(generateLicenseKey());
       } else {
         setTargetNodeId(business?.nodeId || 'node-default');
+        setRegenerateKey(false);
+        setGeneratedKeyPreview('');
       }
     }
   }, [isOpen, business]);
@@ -80,7 +90,7 @@ export default function ChangePlanModal({
   calculatedNewExp.setDate(calculatedNewExp.getDate() + newPlanObj.days);
 
   const handleConfirmChange = async () => {
-    if (selectedPlan === currentPlan && targetNodeId === business?.nodeId) {
+    if (selectedPlan === currentPlan && targetNodeId === business?.nodeId && !regenerateKey) {
       onClose();
       return;
     }
@@ -89,7 +99,8 @@ export default function ChangePlanModal({
     setErrorMsg('');
 
     try {
-      await changeBusinessPlan(business.licenseKey, selectedPlan, targetNodeId);
+      const finalNewKey = regenerateKey ? (generatedKeyPreview || generateLicenseKey()) : null;
+      const res = await changeBusinessPlan(business.licenseKey, selectedPlan, targetNodeId, finalNewKey);
       
       try {
         confetti({
@@ -100,7 +111,8 @@ export default function ChangePlanModal({
       } catch {}
 
       setLoading(false);
-      onPlanChanged(`¡Plan de "${business.businessName}" actualizado a ${newPlanObj.title}!`);
+      const keyNote = res.licenseKey && res.licenseKey !== business.licenseKey ? ` (Nueva Clave Oficial: ${res.licenseKey})` : '';
+      onPlanChanged(`¡Plan de "${business.businessName}" actualizado a ${newPlanObj.title}!${keyNote}`);
       onClose();
     } catch (err) {
       setLoading(false);
@@ -244,6 +256,41 @@ export default function ChangePlanModal({
               'El comercio permanecerá en su clúster actual.'
             )}
           </p>
+        </div>
+
+        {/* License Key Migration Option (Clean Pro Key Format) */}
+        <div className={`p-4 rounded-2xl border transition-all ${
+          regenerateKey 
+            ? 'bg-cyan-500/10 border-cyan-500/30' 
+            : 'bg-slate-950/60 border-white/10'
+        }`}>
+          <label className="flex items-start gap-3 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={regenerateKey}
+              onChange={e => setRegenerateKey(e.target.checked)}
+              className="mt-1 w-4 h-4 rounded text-cyan-500 focus:ring-cyan-400 bg-slate-900 border-white/20 cursor-pointer"
+            />
+            <div className="space-y-1">
+              <div className="text-xs font-bold text-white flex items-center gap-2">
+                <KeyRound className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Generar Clave Pro Oficial (Formato VX-2026-XXXX-XXXX)</span>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                {(business.licenseKey || '').toUpperCase().includes('DEMO')
+                  ? 'Recomendado: La clave actual contiene "DEMO". Al activar esta casilla, se actualizará a una clave Pro limpia en toda la nube.'
+                  : 'Reemplaza la clave actual por una nueva clave Pro aleatoria.'}
+              </p>
+              {regenerateKey && (
+                <div className="pt-2 flex items-center gap-2">
+                  <span className="text-[11px] text-slate-400">Nueva Clave Propuesta:</span>
+                  <span className="font-mono text-xs font-black text-cyan-300 bg-slate-900 px-2.5 py-1 rounded-lg border border-cyan-500/30">
+                    {generatedKeyPreview}
+                  </span>
+                </div>
+              )}
+            </div>
+          </label>
         </div>
 
         {/* Impact Summary & Confirmation Alert */}

@@ -401,11 +401,13 @@ export const extendBusinessLicense = extendBusinessSubscription;
 /**
  * Cambia el plan único de un comercio directamente en Supabase
  */
-export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId = null) => {
+export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId = null, newLicenseKey = null) => {
   const { client: sourceClient, nodeId: sourceNodeId } = await getClientForLicense(licenseKey);
   if (!sourceClient) {
     throw new Error('Supabase no está configurado o conectado.');
   }
+
+  const cleanFinalKey = (newLicenseKey || licenseKey).trim().toUpperCase();
 
   let fee = 80.00;
   let boxes = 2;
@@ -452,7 +454,7 @@ export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId =
 
       if (bizData) {
         // Inyectar en nodo destino
-        const targetBiz = { ...bizData, node_id: targetNodeId, updated_at: new Date().toISOString() };
+        const targetBiz = { ...bizData, license_key: cleanFinalKey, node_id: targetNodeId, updated_at: new Date().toISOString() };
         delete targetBiz.id; // Permitir nuevo ID autoincremental en destino
 
         const { data: newBiz } = await targetClient
@@ -466,7 +468,7 @@ export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId =
           .from('subscriptions')
           .upsert({
             business_id: newBiz?.id || bizData.id,
-            license_key: licenseKey,
+            license_key: cleanFinalKey,
             plan_type: newPlanType,
             monthly_fee_usd: fee,
             max_boxes: boxes,
@@ -475,7 +477,8 @@ export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId =
             updated_at: new Date().toISOString()
           }, { onConflict: 'license_key' });
 
-        // Eliminar del nodo origen para liberar cuota demo
+        // Eliminar del nodo origen para liberar cuota demo (primero suscripción por FK)
+        await sourceClient.from('subscriptions').delete().eq('license_key', licenseKey);
         await sourceClient.from('businesses').delete().eq('license_key', licenseKey);
       }
     } else {
@@ -483,6 +486,7 @@ export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId =
       await targetClient
         .from('subscriptions')
         .update({
+          license_key: cleanFinalKey,
           plan_type: newPlanType,
           monthly_fee_usd: fee,
           max_boxes: boxes,
@@ -491,21 +495,29 @@ export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId =
           updated_at: new Date().toISOString()
         })
         .eq('license_key', licenseKey);
+
+      if (cleanFinalKey !== licenseKey) {
+        await targetClient
+          .from('businesses')
+          .update({ license_key: cleanFinalKey, updated_at: new Date().toISOString() })
+          .eq('license_key', licenseKey);
+      }
     }
 
     await logAuditEvent({
       actionType: 'PROMOCION_NODO',
-      description: `Comercio ${licenseKey} promovido de ${sourceNodeId} a ${targetNodeId} con plan ${newPlanType}`,
-      targetBusiness: licenseKey
+      description: `Comercio ${licenseKey} promovido de ${sourceNodeId} a ${targetNodeId} con plan ${newPlanType}${cleanFinalKey !== licenseKey ? ` (Nueva Clave: ${cleanFinalKey})` : ''}`,
+      targetBusiness: cleanFinalKey
     });
 
-    return { success: true, newPlanType, fee, boxes, expirationDate: expDate, nodeId: targetNodeId };
+    return { success: true, newPlanType, fee, boxes, expirationDate: expDate, nodeId: targetNodeId, licenseKey: cleanFinalKey };
   }
 
   // Actualización en el mismo nodo
   const { error: subErr } = await sourceClient
     .from('subscriptions')
     .update({
+      license_key: cleanFinalKey,
       plan_type: newPlanType,
       monthly_fee_usd: fee,
       max_boxes: boxes,
@@ -520,6 +532,7 @@ export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId =
   }
 
   const bizUpdate = {
+    license_key: cleanFinalKey,
     is_active: 1,
     updated_at: new Date().toISOString()
   };
@@ -543,13 +556,102 @@ export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId =
       .eq('license_key', licenseKey);
   }
 
+  if (cleanFinalKey !== licenseKey) {
+    try {
+      await Promise.allSettled([
+        sourceClient.from('payments').update({ license_key: cleanFinalKey }).eq('license_key', licenseKey),
+        sourceClient.from('pos_devices').update({ license_key: cleanFinalKey }).eq('license_key', licenseKey),
+        sourceClient.from('support_tickets').update({ license_key: cleanFinalKey }).eq('license_key', licenseKey)
+      ]);
+    } catch {}
+  }
+
   await logAuditEvent({
     actionType: 'CAMBIO_PLAN',
-    description: `Plan cambiado a ${newPlanType} ($${fee}) para ${licenseKey}${targetNodeId ? ` · Clúster: ${targetNodeId}` : ''}`,
-    targetBusiness: licenseKey
+    description: `Plan cambiado a ${newPlanType} ($${fee}) para ${licenseKey}${cleanFinalKey !== licenseKey ? ` -> Nueva clave: ${cleanFinalKey}` : ''}${targetNodeId ? ` · Clúster: ${targetNodeId}` : ''}`,
+    targetBusiness: cleanFinalKey
   });
 
-  return { success: true, newPlanType, fee, boxes, expirationDate: expDate, nodeId: targetNodeId };
+  return { success: true, newPlanType, fee, boxes, expirationDate: expDate, nodeId: targetNodeId, licenseKey: cleanFinalKey };
+};
+
+/**
+ * Actualiza o regenera la clave de licencia de un comercio en todas las tablas vinculadas de Supabase
+ */
+export const updateBusinessLicenseKey = async (oldLicenseKey, newLicenseKey) => {
+  const cleanOld = (oldLicenseKey || '').trim().toUpperCase();
+  const cleanNew = (newLicenseKey || '').trim().toUpperCase();
+
+  if (!cleanOld || !cleanNew) {
+    throw new Error('Las claves de licencia de origen y destino son obligatorias.');
+  }
+
+  if (cleanOld === cleanNew) {
+    return { success: true, licenseKey: cleanNew };
+  }
+
+  const { client: supabase, nodeId } = await getClientForLicense(cleanOld);
+  if (!supabase) {
+    throw new Error('Supabase no está configurado o conectado.');
+  }
+
+  // Verificar que la nueva clave no exista ya en ningún nodo
+  const allNodes = getAllNodes();
+  for (const n of allNodes) {
+    const nodeCli = getNodeClient(n.id);
+    if (nodeCli) {
+      const { data: existingSub } = await nodeCli
+        .from('subscriptions')
+        .select('id, license_key')
+        .eq('license_key', cleanNew)
+        .maybeSingle();
+
+      if (existingSub) {
+        throw new Error(`La clave de licencia "${cleanNew}" ya está en uso en el nodo ${n.name}.`);
+      }
+    }
+  }
+
+  // 1. Actualizar tabla businesses
+  const { error: bizErr } = await supabase
+    .from('businesses')
+    .update({ license_key: cleanNew, updated_at: new Date().toISOString() })
+    .eq('license_key', cleanOld);
+
+  if (bizErr) {
+    throw new Error(`Error al actualizar clave en negocios: ${bizErr.message}`);
+  }
+
+  // 2. Actualizar tabla subscriptions
+  const { error: subErr } = await supabase
+    .from('subscriptions')
+    .update({ license_key: cleanNew, updated_at: new Date().toISOString() })
+    .eq('license_key', cleanOld);
+
+  if (subErr) {
+    // Revertir businesses si falla
+    await supabase.from('businesses').update({ license_key: cleanOld }).eq('license_key', cleanNew);
+    throw new Error(`Error al actualizar clave en suscripciones: ${subErr.message}`);
+  }
+
+  // 3. Actualizar tablas secundarias (payments, pos_devices, support_tickets)
+  try {
+    await Promise.allSettled([
+      supabase.from('payments').update({ license_key: cleanNew }).eq('license_key', cleanOld),
+      supabase.from('pos_devices').update({ license_key: cleanNew }).eq('license_key', cleanOld),
+      supabase.from('support_tickets').update({ license_key: cleanNew }).eq('license_key', cleanOld)
+    ]);
+  } catch (e) {
+    console.warn('Aviso al actualizar tablas secundarias con nueva clave:', e);
+  }
+
+  await logAuditEvent({
+    actionType: 'REGENERAR_LICENCIA',
+    description: `Clave de licencia actualizada de ${cleanOld} a ${cleanNew} (Nodo: ${nodeId})`,
+    targetBusiness: cleanNew
+  });
+
+  return { success: true, oldLicenseKey: cleanOld, newLicenseKey: cleanNew };
 };
 
 /**
