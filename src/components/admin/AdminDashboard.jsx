@@ -250,7 +250,11 @@ export default function AdminDashboard({ onBackToLanding }) {
     }
 
     try {
-      await deleteBusiness(biz.licenseKey, biz.businessName);
+      await deleteBusiness(biz.licenseKey, biz.businessName, {
+        businessId: biz.businessId,
+        nodeId: biz.nodeId,
+        rifDoc: biz.rifDoc
+      });
       showToast(`✅ Comercio "${biz.businessName}" eliminado permanentemente.`);
       checkAndFetch();
     } catch (err) {

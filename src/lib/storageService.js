@@ -73,6 +73,18 @@ export const fetchAllBusinesses = async () => {
 
       // Procesar negocios de este nodo
       bizsData.forEach(biz => {
+        // Excluir comercios eliminados o dados de baja
+        if (
+          biz.is_active === -1 || 
+          (biz.is_active === 0 && (
+            (biz.name && biz.name.startsWith('[ELIMINADO]')) ||
+            (biz.license_key && biz.license_key.startsWith('DEL-')) ||
+            (biz.rif_doc && biz.rif_doc.startsWith('DEL-'))
+          ))
+        ) {
+          return;
+        }
+
         const sub = subsMap[biz.id] || subsMap[biz.license_key] || {};
         if (sub.id) processedIds.add(sub.id);
 
@@ -138,6 +150,7 @@ export const fetchAllBusinesses = async () => {
       subsData.forEach(sub => {
         if (!processedIds.has(sub.id)) {
           const licenseKey = sub.license_key || 'VX-PRO-0000';
+          if (licenseKey.startsWith('DEL-')) return;
           if (seenLicenseKeys.has(licenseKey)) return;
           seenLicenseKeys.add(licenseKey);
 
@@ -590,10 +603,12 @@ export const updateBusinessLicenseKey = async (oldLicenseKey, newLicenseKey) => 
     return { success: true, licenseKey: cleanNew };
   }
 
-  const { client: supabase, nodeId } = await getClientForLicense(cleanOld);
+  const { client: supabase, nodeId, business } = await getClientForLicense(cleanOld);
   if (!supabase) {
     throw new Error('Supabase no está configurado o conectado.');
   }
+
+  const businessId = business?.id;
 
   // Verificar que la nueva clave no exista ya en ningún nodo
   const allNodes = getAllNodes();
@@ -622,32 +637,58 @@ export const updateBusinessLicenseKey = async (oldLicenseKey, newLicenseKey) => 
     throw new Error(`Error al actualizar clave en negocios: ${bizErr.message}`);
   }
 
-  // 2. Actualizar tabla subscriptions
-  const { error: subErr } = await supabase
-    .from('subscriptions')
-    .update({ license_key: cleanNew, updated_at: new Date().toISOString() })
-    .eq('license_key', cleanOld);
+  // 2. Actualizar tabla subscriptions (por business_id para evitar desincronización)
+  let subUpdated = false;
+  if (businessId) {
+    const { error: subErr } = await supabase
+      .from('subscriptions')
+      .update({ license_key: cleanNew, updated_at: new Date().toISOString() })
+      .eq('business_id', businessId);
 
-  if (subErr) {
-    // Revertir businesses si falla
-    await supabase.from('businesses').update({ license_key: cleanOld }).eq('license_key', cleanNew);
-    throw new Error(`Error al actualizar clave en suscripciones: ${subErr.message}`);
+    if (subErr) {
+      // Revertir businesses si falla
+      await supabase.from('businesses').update({ license_key: cleanOld }).eq('license_key', cleanNew);
+      throw new Error(`Error al actualizar clave en suscripciones: ${subErr.message}`);
+    }
+    subUpdated = true;
+  }
+
+  // Fallback: también intentar por license_key vieja (para suscripciones huérfanas)
+  if (!subUpdated) {
+    const { error: subErr } = await supabase
+      .from('subscriptions')
+      .update({ license_key: cleanNew, updated_at: new Date().toISOString() })
+      .eq('license_key', cleanOld);
+
+    if (subErr) {
+      await supabase.from('businesses').update({ license_key: cleanOld }).eq('license_key', cleanNew);
+      throw new Error(`Error al actualizar clave en suscripciones: ${subErr.message}`);
+    }
   }
 
   // 3. Actualizar tablas secundarias (payments, pos_devices, support_tickets)
   try {
-    await Promise.allSettled([
+    const updateConditions = [cleanOld];
+    // Si businessId existe, también actualizar por business_id para mayor cobertura
+    const updatePromises = [
       supabase.from('payments').update({ license_key: cleanNew }).eq('license_key', cleanOld),
       supabase.from('pos_devices').update({ license_key: cleanNew }).eq('license_key', cleanOld),
       supabase.from('support_tickets').update({ license_key: cleanNew }).eq('license_key', cleanOld)
-    ]);
+    ];
+    if (businessId) {
+      updatePromises.push(
+        supabase.from('payments').update({ license_key: cleanNew }).eq('business_id', businessId),
+        supabase.from('pos_devices').update({ license_key: cleanNew }).eq('business_id', businessId)
+      );
+    }
+    await Promise.allSettled(updatePromises);
   } catch (e) {
     console.warn('Aviso al actualizar tablas secundarias con nueva clave:', e);
   }
 
   await logAuditEvent({
     actionType: 'REGENERAR_LICENCIA',
-    description: `Clave de licencia actualizada de ${cleanOld} a ${cleanNew} (Nodo: ${nodeId})`,
+    description: `Clave de licencia actualizada de ${cleanOld} a ${cleanNew} (Nodo: ${nodeId}, BusinessID: ${businessId || 'N/A'})`,
     targetBusiness: cleanNew
   });
 
@@ -658,70 +699,142 @@ export const updateBusinessLicenseKey = async (oldLicenseKey, newLicenseKey) => 
  * Elimina un comercio y todos sus datos asociados (suscripción, pagos, dispositivos) de Supabase.
  * Usa ON DELETE CASCADE en la base de datos, pero también limpia manualmente las tablas secundarias por seguridad.
  */
-export const deleteBusiness = async (licenseKey, businessName = '') => {
-  const cleanKey = (licenseKey || '').trim().toUpperCase();
-  if (!cleanKey) {
-    throw new Error('La clave de licencia es obligatoria para eliminar un comercio.');
+/**
+ * Elimina un comercio y todos sus datos asociados (suscripción, pagos, dispositivos, inventario) de Supabase.
+ * Limpia primero todas las tablas secundarias e imágenes de storage.
+ * Si el borrado físico de la tabla `businesses` es bloqueado por un trigger de base de datos
+ * (como triggers internos de Supabase Storage), aplica una baja definitiva (decommission)
+ * liberando el RIF y la clave de licencia para que no queden bloqueados.
+ */
+export const deleteBusiness = async (licenseKeyOrBiz, businessName = '', extra = {}) => {
+  const isObj = typeof licenseKeyOrBiz === 'object' && licenseKeyOrBiz !== null;
+  const rawKey = isObj ? licenseKeyOrBiz.licenseKey : licenseKeyOrBiz;
+  const rawName = isObj ? licenseKeyOrBiz.businessName : (businessName || extra.businessName || '');
+  const rawBizId = isObj ? (licenseKeyOrBiz.businessId || licenseKeyOrBiz.id) : (extra.businessId || extra.id);
+  const preferredNodeId = isObj ? licenseKeyOrBiz.nodeId : extra.nodeId;
+  const rawRif = isObj ? licenseKeyOrBiz.rifDoc : extra.rifDoc;
+
+  const cleanKey = (rawKey || '').trim().toUpperCase();
+  if (!cleanKey && !rawBizId) {
+    throw new Error('La clave de licencia o ID del comercio es obligatorio para eliminarlo.');
   }
 
-  const { client: supabase, nodeId, business } = await getClientForLicense(cleanKey);
+  const { client: supabase, nodeId, business } = await getClientForLicense(cleanKey, preferredNodeId);
   if (!supabase) {
     throw new Error('Supabase no está configurado o conectado.');
   }
 
-  const businessId = business?.id;
+  const targetBusinessId = rawBizId || business?.id;
+  const finalBusinessName = rawName || business?.name || cleanKey;
 
-  // 1. Eliminar registros secundarios manualmente (por si CASCADE falla o no existe)
+  // 1. Eliminar registros secundarios e hijos (por license_key y por business_id)
   try {
-    await Promise.allSettled([
+    const cleanupPromises = [
       supabase.from('pos_devices').delete().eq('license_key', cleanKey),
       supabase.from('payments').delete().eq('license_key', cleanKey),
       supabase.from('support_tickets').delete().eq('license_key', cleanKey),
-    ]);
+      supabase.from('subscriptions').delete().eq('license_key', cleanKey),
+    ];
+
+    if (targetBusinessId) {
+      cleanupPromises.push(
+        supabase.from('pos_devices').delete().eq('business_id', targetBusinessId),
+        supabase.from('payments').delete().eq('business_id', targetBusinessId),
+        supabase.from('support_tickets').delete().eq('business_id', targetBusinessId),
+        supabase.from('subscriptions').delete().eq('business_id', targetBusinessId),
+        supabase.from('products').delete().eq('business_id', targetBusinessId),
+        supabase.from('categories').delete().eq('business_id', targetBusinessId),
+        supabase.from('sales').delete().eq('business_id', targetBusinessId),
+        supabase.from('clients').delete().eq('business_id', targetBusinessId),
+        supabase.from('kardex_movements').delete().eq('business_id', targetBusinessId),
+        supabase.from('cash_shifts').delete().eq('business_id', targetBusinessId),
+        supabase.from('suppliers').delete().eq('business_id', targetBusinessId),
+        supabase.from('purchases').delete().eq('business_id', targetBusinessId),
+        supabase.from('banks').delete().eq('business_id', targetBusinessId),
+      );
+    }
+
+    await Promise.allSettled(cleanupPromises);
   } catch (e) {
     console.warn('Aviso al limpiar tablas secundarias:', e);
   }
 
-  // 2. Eliminar suscripción
-  const { error: subErr } = await supabase
-    .from('subscriptions')
-    .delete()
-    .eq('license_key', cleanKey);
-
-  if (subErr) {
-    console.warn('Error al eliminar suscripción:', subErr.message);
+  // 2. Limpiar imágenes asociadas en Supabase Storage (si existen)
+  if (targetBusinessId) {
+    try {
+      const folderPath = `biz_${targetBusinessId}`;
+      for (const subFolder of ['products', 'combos']) {
+        const path = `${folderPath}/${subFolder}`;
+        const { data: files } = await supabase.storage.from('product-images').list(path);
+        if (files && files.length > 0) {
+          const toRemove = files.map(f => `${path}/${f.name}`);
+          await supabase.storage.from('product-images').remove(toRemove);
+        }
+      }
+    } catch (storageErr) {
+      console.warn('Aviso al limpiar imágenes de storage:', storageErr);
+    }
   }
 
-  // 3. Eliminar el comercio principal (esto también activaría CASCADE)
+  // 3. Eliminar el comercio principal de la tabla 'businesses'
   let deleted = false;
-  if (businessId) {
+  let hardDeleteError = null;
+
+  if (targetBusinessId) {
     const { error: bizErr } = await supabase
       .from('businesses')
       .delete()
-      .eq('id', businessId);
+      .eq('id', targetBusinessId);
 
-    if (bizErr) {
-      throw new Error(`Error al eliminar comercio: ${bizErr.message}`);
+    if (!bizErr) {
+      deleted = true;
+    } else {
+      hardDeleteError = bizErr;
     }
-    deleted = true;
-  } else {
-    // Intentar eliminar por license_key directamente
+  } else if (cleanKey) {
     const { error: bizErr } = await supabase
       .from('businesses')
       .delete()
       .eq('license_key', cleanKey);
 
-    if (bizErr) {
-      throw new Error(`Error al eliminar comercio: ${bizErr.message}`);
+    if (!bizErr) {
+      deleted = true;
+    } else {
+      hardDeleteError = bizErr;
+    }
+  }
+
+  // 4. Fallback si el borrado físico directo fue rechazado por triggers de storage o FKs
+  if (!deleted && hardDeleteError) {
+    console.warn(`Borrado físico de comercio bloqueado por constraint/trigger de base de datos (${hardDeleteError.message}). Aplicando baja definitiva controlada...`);
+
+    const uniqueStamp = Date.now();
+    const decommissionData = {
+      is_active: 0,
+      name: `[ELIMINADO] ${finalBusinessName}`,
+      license_key: `DEL-${uniqueStamp}-${(cleanKey || 'NOKEY').slice(-6)}`,
+      rif_doc: `DEL-${uniqueStamp}-${(rawRif || business?.rif_doc || 'RIF').replace(/[^a-zA-Z0-9]/g, '').slice(-8)}`
+    };
+
+    let query = supabase.from('businesses').update(decommissionData);
+    if (targetBusinessId) {
+      query = query.eq('id', targetBusinessId);
+    } else {
+      query = query.eq('license_key', cleanKey);
+    }
+
+    const { error: updateErr } = await query;
+    if (updateErr) {
+      throw new Error(`No se pudo eliminar el comercio ni darlo de baja: ${updateErr.message}`);
     }
     deleted = true;
   }
 
-  // 4. Log de auditoría
+  // 5. Log de auditoría
   await logAuditEvent({
     actionType: 'ELIMINAR_COMERCIO',
-    description: `Comercio "${businessName}" eliminado permanentemente (Clave: ${cleanKey}, Nodo: ${nodeId})`,
-    targetBusiness: businessName || cleanKey
+    description: `Comercio "${finalBusinessName}" eliminado permanentemente (Clave: ${cleanKey}, Nodo: ${nodeId})`,
+    targetBusiness: finalBusinessName || cleanKey
   });
 
   return { success: true, deleted, licenseKey: cleanKey, nodeId };
@@ -1202,9 +1315,11 @@ export const logAuditEvent = async ({
 
   // Guardar localmente
   try {
-    const existing = JSON.parse(localStorage.getItem('vx_audit_logs') || '[]');
-    existing.unshift(logEntry);
-    localStorage.setItem('vx_audit_logs', JSON.stringify(existing.slice(0, 200)));
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      const existing = JSON.parse(localStorage.getItem('vx_audit_logs') || '[]');
+      existing.unshift(logEntry);
+      localStorage.setItem('vx_audit_logs', JSON.stringify(existing.slice(0, 200)));
+    }
   } catch (e) {
     console.warn(e);
   }

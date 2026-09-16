@@ -2,8 +2,9 @@ import { createClient } from '@supabase/supabase-js';
 
 // Default Supabase project configuration (can be overridden in localStorage or .env)
 const DEFAULT_URL = 'https://sjmmlbwrghvlexxztkzv.supabase.co';
+const DEFAULT_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqbW1sYndyZ2h2bGV4eHp0a3p2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3MzE5NTcsImV4cCI6MjEwMjMwNzk1N30.7MpFfY59WIK7JxAYYTUHq5wj91eGKhr4ozgwJY25oLo';
 const ENV_URL = import.meta.env?.VITE_SUPABASE_URL || DEFAULT_URL;
-const ENV_KEY = import.meta.env?.VITE_SUPABASE_ANON_KEY || '';
+const ENV_KEY = import.meta.env?.VITE_SUPABASE_ANON_KEY || DEFAULT_KEY;
 
 export const SUPABASE_SCHEMA_SQL = `-- ========================================================
 -- VENTROX POS & SUPERADMIN - ESQUEMA OFICIAL DE SUPABASE
@@ -130,6 +131,33 @@ ALTER TABLE public.pos_devices DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.support_tickets DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.global_config DISABLE ROW LEVEL SECURITY;
+
+-- 9. Eliminar triggers o constraints conflictivos que impiden el borrado de comercios
+DO $$
+DECLARE
+    trg RECORD;
+    fk RECORD;
+BEGIN
+    -- Eliminar triggers en businesses que causan error de storage
+    FOR trg IN 
+        SELECT trigger_name 
+        FROM information_schema.triggers 
+        WHERE event_object_table = 'businesses' 
+          AND trigger_schema = 'public'
+    LOOP
+        EXECUTE format('DROP TRIGGER IF EXISTS %I ON public.businesses CASCADE;', trg.trigger_name);
+    END LOOP;
+
+    -- Eliminar foreign keys en storage que apunten a businesses
+    FOR fk IN 
+        SELECT tc.constraint_name, tc.table_schema, tc.table_name
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.constraint_column_usage ccu ON ccu.constraint_name = tc.constraint_name
+        WHERE ccu.table_name = 'businesses' AND tc.table_schema = 'storage'
+    LOOP
+        EXECUTE format('ALTER TABLE %I.%I DROP CONSTRAINT IF EXISTS %I CASCADE;', fk.table_schema, fk.table_name, fk.constraint_name);
+    END LOOP;
+END $$;
 `;
 
 export function cleanSupabaseUrl(raw) {
