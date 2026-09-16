@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   Store, Copy, MessageCircle, Play, Pause, Search, Calendar, Sparkles, 
   Edit3, LayoutList, LayoutGrid, Monitor, Check, 
-  DollarSign, Receipt, Download, Sliders, Database
+  DollarSign, Receipt, Download, Sliders, Database, KeyRound, RefreshCw
 } from 'lucide-react';
 import Badge from '../ui/Badge';
 import { formatDate, getDaysRemaining } from '../../lib/licenseUtils';
@@ -21,6 +21,7 @@ export default function ClientGrid({
   onCopyKey,
   onChangePlan,
   onEditBusiness,
+  onRegenerateKey,
   onOpenWhatsApp,
   onRecordPayment,
   onOpenPaymentHistory,
@@ -325,7 +326,7 @@ export default function ClientGrid({
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="font-mono text-[11px] text-cyan-300/90 select-all font-semibold">
                               {sub.licenseKey}
                             </span>
@@ -337,6 +338,17 @@ export default function ClientGrid({
                             >
                               {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                             </button>
+                            {(sub.licenseKey || '').toUpperCase().includes('DEMO') && (
+                              <button
+                                type="button"
+                                onClick={() => onRegenerateKey ? onRegenerateKey(sub) : onEditBusiness(sub)}
+                                className="px-2 py-0.5 rounded-md bg-gradient-to-r from-amber-500/25 to-orange-500/25 hover:from-amber-500/40 hover:to-orange-500/40 text-amber-300 border border-amber-500/40 text-[10px] font-black flex items-center gap-1 shadow-sm cursor-pointer transition-all"
+                                title="Haga clic para convertir esta clave temporal DEMO a una Clave Pro Oficial (VX-2026-...)"
+                              >
+                                <Sparkles className="w-2.5 h-2.5 text-amber-300" />
+                                <span>⚡ Generar Clave Pro</span>
+                              </button>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -477,6 +489,19 @@ export default function ClientGrid({
                             <Sliders className="w-3.5 h-3.5" />
                           </button>
 
+                          {/* Quick Convert DEMO key button in actions */}
+                          {(sub.licenseKey || '').toUpperCase().includes('DEMO') && (
+                            <button
+                              type="button"
+                              onClick={() => onRegenerateKey ? onRegenerateKey(sub) : onEditBusiness(sub)}
+                              className="px-2.5 py-1.5 rounded-xl font-bold text-xs bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 text-amber-300 border border-amber-500/40 flex items-center gap-1.5 transition-all cursor-pointer"
+                              title="Convertir clave DEMO a Clave Pro Oficial"
+                            >
+                              <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+                              <span className="hidden sm:inline">Clave Pro</span>
+                            </button>
+                          )}
+
                           {/* Edit Business Button */}
                           <button
                             type="button"
@@ -585,14 +610,27 @@ export default function ClientGrid({
                         {sub.licenseKey}
                       </span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(sub.licenseKey)}
-                      className="p-2 rounded-xl bg-white/[0.05] hover:bg-cyan-500/20 text-slate-400 hover:text-cyan-300 transition-colors cursor-pointer"
-                      title="Copiar Clave"
-                    >
-                      {isCopied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                    </button>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {(sub.licenseKey || '').toUpperCase().includes('DEMO') && (
+                        <button
+                          type="button"
+                          onClick={() => onRegenerateKey ? onRegenerateKey(sub) : onEditBusiness(sub)}
+                          className="px-2 py-1 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 text-[10px] font-black flex items-center gap-1 shadow-md shadow-amber-500/20 cursor-pointer transition-all"
+                          title="Generar Clave Pro Oficial"
+                        >
+                          <Sparkles className="w-3 h-3" />
+                          <span>⚡ Clave Pro</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(sub.licenseKey)}
+                        className="p-2 rounded-xl bg-white/[0.05] hover:bg-cyan-500/20 text-slate-400 hover:text-cyan-300 transition-colors cursor-pointer"
+                        title="Copiar Clave"
+                      >
+                        {isCopied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
 
                   {/* Plan & Pricing Info */}

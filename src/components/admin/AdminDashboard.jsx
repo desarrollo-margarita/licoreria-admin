@@ -9,9 +9,9 @@ import { getSupabaseClient, testSupabaseConnection, SUPABASE_SCHEMA_SQL } from '
 import { 
   fetchAllBusinesses, extendBusinessLicense, toggleBusinessStatusInStorage, 
   exportBusinessesToCsv, fetchGlobalConfig, fetchSupportTickets,
-  approvePendingPayment, rejectPendingPayment
+  approvePendingPayment, rejectPendingPayment, updateBusinessLicenseKey
 } from '../../lib/storageService';
-import { getDaysRemaining } from '../../lib/licenseUtils';
+import { getDaysRemaining, generateLicenseKey } from '../../lib/licenseUtils';
 
 import AdminSidebar from './AdminSidebar';
 import KpiHeader from './KpiHeader';
@@ -214,6 +214,21 @@ export default function AdminDashboard({ onBackToLanding }) {
       checkAndFetch();
     } catch (err) {
       showToast('Error rechazando pago: ' + err.message);
+    }
+  };
+
+  const handleRegenerateKey = async (biz) => {
+    const newKey = generateLicenseKey();
+    if (!window.confirm(`¿Confirmas convertir la clave de "${biz.businessName}" de "${biz.licenseKey}" a la Clave Pro Oficial "${newKey}"? Esto actualizará todas las tablas en Supabase de forma inmediata.`)) {
+      return;
+    }
+
+    try {
+      const res = await updateBusinessLicenseKey(biz.licenseKey, newKey);
+      showToast(`¡Clave Pro generada exitosamente: ${res.newLicenseKey}!`);
+      checkAndFetch();
+    } catch (err) {
+      showToast(`Error al convertir clave: ${err.message}`);
     }
   };
 
@@ -486,6 +501,7 @@ export default function AdminDashboard({ onBackToLanding }) {
                 onCopyKey={copyKey}
                 onChangePlan={(biz) => setSelectedBusinessForPlan(biz)}
                 onEditBusiness={(biz) => setSelectedBusinessForEdit(biz)}
+                onRegenerateKey={handleRegenerateKey}
                 onOpenWhatsApp={(biz) => setSelectedBusinessForWhatsApp(biz)}
                 onRecordPayment={(biz) => setSelectedBusinessForPayment(biz)}
                 onOpenPaymentHistory={(biz) => setSelectedBusinessForHistory(biz)}
