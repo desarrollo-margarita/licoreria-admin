@@ -6,6 +6,12 @@ const DEFAULT_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 const ENV_URL = import.meta.env?.VITE_SUPABASE_URL || DEFAULT_URL;
 const ENV_KEY = import.meta.env?.VITE_SUPABASE_ANON_KEY || DEFAULT_KEY;
 
+// Default Demo / Testing Supabase cluster configuration (Nodo 2)
+const DEFAULT_DEMO_URL = 'https://irwaqwgpyxjxjsexewze.supabase.co';
+const DEFAULT_DEMO_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlyd2Fxd2dweXhqeGpzZXhld3plIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyMjEyMjksImV4cCI6MjEwMzc5NzIyOX0.9JYbgkHhcjngVWZ1vkkh_Ube85lU-nZqwBFLzro81gU';
+const ENV_DEMO_URL = import.meta.env?.VITE_DEMO_SUPABASE_URL || DEFAULT_DEMO_URL;
+const ENV_DEMO_KEY = import.meta.env?.VITE_DEMO_SUPABASE_ANON_KEY || DEFAULT_DEMO_KEY;
+
 export const SUPABASE_SCHEMA_SQL = `-- ========================================================
 -- VENTROX POS & SUPERADMIN - ESQUEMA OFICIAL DE SUPABASE
 -- Pega este script en el SQL Editor de tu proyecto Supabase
@@ -306,6 +312,7 @@ export const getAllNodes = () => {
     const isBrowser = typeof window !== 'undefined' && typeof localStorage !== 'undefined';
     const stored = isBrowser ? localStorage.getItem(NODES_STORAGE_KEY) : null;
     let nodes = stored ? JSON.parse(stored) : [];
+    let modified = false;
     
     const defaultCreds = getStoredCredentials();
 
@@ -322,8 +329,10 @@ export const getAllNodes = () => {
         createdAt: new Date().toISOString()
       };
       nodes.unshift(prodNode);
+      modified = true;
     } else if (prodNode.name === 'Nodo 1 - Principal (Default)') {
       prodNode.name = 'Nodo 1 - Producción (Clientes Pagos)';
+      modified = true;
     }
 
     // 2. Asegurar Nodo 2 (Demos / Pruebas)
@@ -332,18 +341,25 @@ export const getAllNodes = () => {
       demoNode = {
         id: 'node-demos',
         name: 'Nodo 2 - Demos / Pruebas (15 Días)',
-        url: 'https://sjmmlbwrghvlexxztkzv.supabase.co',
-        anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqbW1sYndyZ2h2bGV4eHp0a3p2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3MzE5NTcsImV4cCI6MjEwMjMwNzk1N30.7MpFfY59WIK7JxAYYTUHq5wj91eGKhr4ozgwJY25oLo',
+        url: cleanSupabaseUrl(ENV_DEMO_URL),
+        anonKey: cleanSupabaseKey(ENV_DEMO_KEY),
         region: 'us-east-1',
         isDefault: false,
         notes: 'Clúster exclusivo para cuentas de prueba gratuitas',
         createdAt: new Date().toISOString()
       };
       nodes.push(demoNode);
-    } else if (demoNode.url.includes('irwaqwgpyxjxjsexewze')) {
-      // Autocorregir URL obsoleta de demos
-      demoNode.url = 'https://sjmmlbwrghvlexxztkzv.supabase.co';
-      demoNode.anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqbW1sYndyZ2h2bGV4eHp0a3p2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3MzE5NTcsImV4cCI6MjEwMjMwNzk1N30.7MpFfY59WIK7JxAYYTUHq5wj91eGKhr4ozgwJY25oLo';
+      modified = true;
+    } else if (demoNode.url.includes('sjmmlbwrghvlexxztkzv') || !demoNode.url) {
+      // Autocorregir si el nodo demo quedó apuntando erróneamente al clúster de producción
+      demoNode.url = cleanSupabaseUrl(ENV_DEMO_URL);
+      demoNode.anonKey = cleanSupabaseKey(ENV_DEMO_KEY);
+      demoNode.name = 'Nodo 2 - Demos / Pruebas (15 Días)';
+      modified = true;
+    }
+
+    if (isBrowser && modified) {
+      localStorage.setItem(NODES_STORAGE_KEY, JSON.stringify(nodes));
     }
 
     return nodes;
@@ -362,8 +378,8 @@ export const getAllNodes = () => {
       {
         id: 'node-demos',
         name: 'Nodo 2 - Demos / Pruebas (15 Días)',
-        url: 'https://sjmmlbwrghvlexxztkzv.supabase.co',
-        anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqbW1sYndyZ2h2bGV4eHp0a3p2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3MzE5NTcsImV4cCI6MjEwMjMwNzk1N30.7MpFfY59WIK7JxAYYTUHq5wj91eGKhr4ozgwJY25oLo',
+        url: cleanSupabaseUrl(ENV_DEMO_URL),
+        anonKey: cleanSupabaseKey(ENV_DEMO_KEY),
         region: 'us-east-1',
         isDefault: false,
         createdAt: new Date().toISOString()
