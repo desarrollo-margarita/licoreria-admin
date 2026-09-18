@@ -24,21 +24,40 @@ export const fetchAllBusinesses = async () => {
     if (!supabase) continue;
 
     try {
-      const [bizsRes, subsRes, paysRes, devsRes] = await Promise.allSettled([
+      const [bizsRes, subsRes, paysRes, devsRes, prodsRes, salesRes] = await Promise.allSettled([
         supabase.from('businesses').select('*').order('created_at', { ascending: false }),
         supabase.from('subscriptions').select('*').order('created_at', { ascending: false }),
         supabase.from('payments').select('*').order('payment_date', { ascending: false }),
-        supabase.from('pos_devices').select('*')
+        supabase.from('pos_devices').select('*'),
+        supabase.from('products').select('business_id'),
+        supabase.from('sales').select('business_id')
       ]);
 
       const bizsData = bizsRes.status === 'fulfilled' && bizsRes.value.data ? bizsRes.value.data : [];
       const subsData = subsRes.status === 'fulfilled' && subsRes.value.data ? subsRes.value.data : [];
       const paysData = paysRes.status === 'fulfilled' && paysRes.value.data ? paysRes.value.data : [];
       const devsData = devsRes.status === 'fulfilled' && devsRes.value.data ? devsRes.value.data : [];
+      const prodsData = prodsRes.status === 'fulfilled' && prodsRes.value.data ? prodsRes.value.data : [];
+      const salesData = salesRes.status === 'fulfilled' && salesRes.value.data ? salesRes.value.data : [];
 
       if (bizsRes.status === 'fulfilled' || subsRes.status === 'fulfilled') {
         hasSuccessfulConnection = true;
       }
+
+      // Indexar conteo de productos y ventas por business_id
+      const productsCountMap = {};
+      prodsData.forEach(p => {
+        if (p.business_id) {
+          productsCountMap[p.business_id] = (productsCountMap[p.business_id] || 0) + 1;
+        }
+      });
+
+      const salesCountMap = {};
+      salesData.forEach(s => {
+        if (s.business_id) {
+          salesCountMap[s.business_id] = (salesCountMap[s.business_id] || 0) + 1;
+        }
+      });
 
       // Indexar suscripciones por business_id y license_key
       const subsMap = {};
@@ -147,6 +166,8 @@ export const fetchAllBusinesses = async () => {
           connectedDevices,
           ltvUsd: ltv,
           paymentsCount,
+          productsCount: productsCountMap[biz.id] || 0,
+          salesCount: salesCountMap[biz.id] || 0,
           distributorName: biz.distributor_name || '',
           distributorCommission: parseFloat(biz.distributor_commission || 0),
           modulesConfig: biz.modules_config ? { ...defaultModules, ...(typeof biz.modules_config === 'string' ? JSON.parse(biz.modules_config) : biz.modules_config) } : defaultModules,
@@ -190,6 +211,8 @@ export const fetchAllBusinesses = async () => {
             connectedDevices,
             ltvUsd: ltv,
             paymentsCount,
+            productsCount: productsCountMap[sub.business_id] || 0,
+            salesCount: salesCountMap[sub.business_id] || 0,
             expirationDate: sub.expiration_date ? new Date(sub.expiration_date).toISOString() : new Date(Date.now() + 365*24*60*60*1000).toISOString(),
             startDate: sub.start_date ? new Date(sub.start_date).toISOString() : new Date().toISOString(),
             notes: sub.notes || ''
@@ -1687,13 +1710,30 @@ export const fetchAllTelemetryDevices = async () => {
     if (!supabase) continue;
 
     try {
-      // 1. Consultar pos_devices
-      const { data: posDevs, error: posErr } = await supabase
-        .from('pos_devices')
-        .select('*')
-        .order('last_seen_at', { ascending: false });
+      // 1. Consultar pos_devices, connected_devices, productos y ventas en paralelo en este nodo
+      const [posDevsRes, connDevsRes, prodsRes, salesRes] = await Promise.allSettled([
+        supabase.from('pos_devices').select('*').order('last_seen_at', { ascending: false }),
+        supabase.from('connected_devices').select('*').order('last_ping', { ascending: false }),
+        supabase.from('products').select('business_id'),
+        supabase.from('sales').select('business_id')
+      ]);
 
-      if (!posErr && posDevs && Array.isArray(posDevs)) {
+      const posDevs = posDevsRes.status === 'fulfilled' && posDevsRes.value.data ? posDevsRes.value.data : [];
+      const connDevs = connDevsRes.status === 'fulfilled' && connDevsRes.value.data ? connDevsRes.value.data : [];
+      const prodsData = prodsRes.status === 'fulfilled' && prodsRes.value.data ? prodsRes.value.data : [];
+      const salesData = salesRes.status === 'fulfilled' && salesRes.value.data ? salesRes.value.data : [];
+
+      const prodsCountMap = {};
+      prodsData.forEach(p => {
+        if (p.business_id) prodsCountMap[p.business_id] = (prodsCountMap[p.business_id] || 0) + 1;
+      });
+
+      const salesCountMap = {};
+      salesData.forEach(s => {
+        if (s.business_id) salesCountMap[s.business_id] = (salesCountMap[s.business_id] || 0) + 1;
+      });
+
+      if (posDevs && Array.isArray(posDevs)) {
         posDevs.forEach(d => {
           const cleanLic = (d.license_key || '').trim().toUpperCase();
           const cleanDevId = (d.device_id || 'CAJA-01').trim().toUpperCase();
@@ -1711,18 +1751,14 @@ export const fetchAllTelemetryDevices = async () => {
             appVersion: d.app_version || '1.0.0',
             lastSeenAt: d.last_seen_at || d.created_at,
             nodeId: node.id,
-            nodeName: node.name
+            nodeName: node.name,
+            productsCount: prodsCountMap[d.business_id] || 0,
+            salesCount: salesCountMap[d.business_id] || 0
           });
         });
       }
 
-      // 2. Consultar connected_devices (esquema alternativo / compatible)
-      const { data: connDevs, error: connErr } = await supabase
-        .from('connected_devices')
-        .select('*')
-        .order('last_ping', { ascending: false });
-
-      if (!connErr && connDevs && Array.isArray(connDevs)) {
+      if (connDevs && Array.isArray(connDevs)) {
         connDevs.forEach(d => {
           const cleanLic = (d.license_key || '').trim().toUpperCase();
           const cleanDevId = (d.device_id || 'CAJA-01').trim().toUpperCase();
@@ -1740,7 +1776,9 @@ export const fetchAllTelemetryDevices = async () => {
             appVersion: d.app_version || '1.0.0',
             lastSeenAt: d.last_ping || d.last_seen_at || d.created_at,
             nodeId: node.id,
-            nodeName: node.name
+            nodeName: node.name,
+            productsCount: prodsCountMap[d.business_id] || 0,
+            salesCount: salesCountMap[d.business_id] || 0
           });
         });
       }

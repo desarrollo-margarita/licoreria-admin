@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Radio, Laptop, Monitor, RefreshCw, 
-  Search, Clock, XCircle
+  Search, Clock, XCircle, Package, ShoppingBag
 } from 'lucide-react';
 import { fetchAllTelemetryDevices } from '../../../lib/storageService';
 import Button from '../../ui/Button';
@@ -56,6 +56,14 @@ export default function TelemetriaTab({ subscriptions = [], onManageDevices }) {
       status = 'RECENT';
     }
 
+    const productsCount = (biz?.productsCount !== undefined && biz?.productsCount !== null)
+      ? biz.productsCount
+      : (d.productsCount || 0);
+
+    const salesCount = (biz?.salesCount !== undefined && biz?.salesCount !== null)
+      ? biz.salesCount
+      : (d.salesCount || 0);
+
     return {
       ...d,
       businessName: biz?.businessName || d.businessName || 'Comercio Registrado',
@@ -63,6 +71,8 @@ export default function TelemetriaTab({ subscriptions = [], onManageDevices }) {
       planType: biz?.planType || 'ANUAL',
       nodeId: d.nodeId || biz?.nodeId || 'node-default',
       nodeName: d.nodeName || biz?.nodeName || 'Nodo 1 - Producción',
+      productsCount,
+      salesCount,
       diffMinutes,
       status
     };
@@ -71,6 +81,24 @@ export default function TelemetriaTab({ subscriptions = [], onManageDevices }) {
   const onlineCount = enrichedDevices.filter(d => d.status === 'ONLINE').length;
   const recentCount = enrichedDevices.filter(d => d.status === 'RECENT').length;
   const offlineCount = enrichedDevices.filter(d => d.status === 'OFFLINE').length;
+
+  // Calcular total de productos y ventas en la flota (deduplicado por negocio)
+  const uniqueBizMap = new Map();
+  enrichedDevices.forEach(d => {
+    const key = d.businessId || d.licenseKey;
+    if (!uniqueBizMap.has(key)) {
+      uniqueBizMap.set(key, { products: d.productsCount || 0, sales: d.salesCount || 0 });
+    }
+  });
+  // Si no hay dispositivos aún, tomar de subscriptions
+  if (uniqueBizMap.size === 0 && subscriptions.length > 0) {
+    subscriptions.forEach(s => {
+      uniqueBizMap.set(s.businessId || s.licenseKey, { products: s.productsCount || 0, sales: s.salesCount || 0 });
+    });
+  }
+
+  const totalProducts = Array.from(uniqueBizMap.values()).reduce((sum, b) => sum + b.products, 0);
+  const totalSales = Array.from(uniqueBizMap.values()).reduce((sum, b) => sum + b.sales, 0);
 
   const filteredDevices = enrichedDevices.filter(d => {
     const matchesSearch = 
@@ -87,7 +115,7 @@ export default function TelemetriaTab({ subscriptions = [], onManageDevices }) {
   return (
     <div className="space-y-6">
       {/* Metrics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-slate-900/80 border border-white/10 rounded-2xl p-4">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-xs font-semibold uppercase tracking-wider">Total Cajas POS</span>
@@ -111,11 +139,20 @@ export default function TelemetriaTab({ subscriptions = [], onManageDevices }) {
 
         <div className="bg-slate-900/80 border border-amber-500/30 rounded-2xl p-4">
           <div className="flex items-center justify-between text-amber-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Activas Hoy</span>
-            <Clock className="w-4 h-4 text-amber-400" />
+            <span className="text-xs font-semibold uppercase tracking-wider">Productos en Red</span>
+            <Package className="w-4 h-4 text-amber-400" />
           </div>
-          <p className="text-2xl font-black font-mono text-amber-400 mt-2">{recentCount}</p>
-          <p className="text-xs text-slate-400 mt-1">Última conexión &lt; 24h</p>
+          <p className="text-2xl font-black font-mono text-amber-300 mt-2">{totalProducts}</p>
+          <p className="text-xs text-slate-400 mt-1">En catálogo de comercios</p>
+        </div>
+
+        <div className="bg-slate-900/80 border border-cyan-500/30 rounded-2xl p-4">
+          <div className="flex items-center justify-between text-cyan-400">
+            <span className="text-xs font-semibold uppercase tracking-wider">Ventas Nube</span>
+            <ShoppingBag className="w-4 h-4 text-cyan-400" />
+          </div>
+          <p className="text-2xl font-black font-mono text-cyan-300 mt-2">{totalSales}</p>
+          <p className="text-xs text-slate-400 mt-1">Ventas procesadas</p>
         </div>
 
         <div className="bg-slate-900/80 border border-slate-700 rounded-2xl p-4">
@@ -197,6 +234,7 @@ export default function TelemetriaTab({ subscriptions = [], onManageDevices }) {
                 <tr className="border-b border-white/10 text-slate-400 font-semibold uppercase tracking-wider">
                   <th className="py-3 px-3">Estado</th>
                   <th className="py-3 px-3">Comercio / Licencia</th>
+                  <th className="py-3 px-3">Catálogo & Ventas</th>
                   <th className="py-3 px-3">Nombre de Equipo</th>
                   <th className="py-3 px-3">Sistema / SO</th>
                   <th className="py-3 px-3">Versión App</th>
@@ -237,6 +275,26 @@ export default function TelemetriaTab({ subscriptions = [], onManageDevices }) {
                             🟢 Prod
                           </span>
                         )}
+                      </div>
+                    </td>
+
+                    {/* Catálogo & Ventas del Comercio */}
+                    <td className="py-3 px-3">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[11px] font-mono font-bold shadow-sm"
+                          title={`Este comercio tiene ${d.productsCount || 0} productos registrados en catálogo`}
+                        >
+                          <Package className="w-3 h-3 text-amber-400 shrink-0" />
+                          <span>{d.productsCount || 0} prod</span>
+                        </span>
+                        <span
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-[11px] font-mono font-bold shadow-sm"
+                          title={`Este comercio ha emitido ${d.salesCount || 0} ventas sincronizadas en la nube`}
+                        >
+                          <ShoppingBag className="w-3 h-3 text-cyan-400 shrink-0" />
+                          <span>{d.salesCount || 0} ventas</span>
+                        </span>
                       </div>
                     </td>
 

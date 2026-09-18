@@ -381,6 +381,11 @@ export default function ClientGrid({
                             <span>{boxCount} {boxCount === 1 ? 'Caja' : 'Cajas'}</span>
                             <span className="text-[10px] text-slate-500 underline font-semibold">(Reset)</span>
                           </button>
+                          <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-400 mt-0.5">
+                            <span className="text-amber-300 font-semibold" title="Productos registrados en catálogo">📦 {sub.productsCount || 0} prod</span>
+                            <span>•</span>
+                            <span className="text-cyan-300 font-semibold" title="Ventas registradas en la nube">🛒 {sub.salesCount || 0} ventas</span>
+                          </div>
                         </div>
                       </td>
 
@@ -657,9 +662,15 @@ export default function ClientGrid({
                           Editar
                         </button>
                       </div>
-                      <div className="text-[11px] text-slate-400 flex items-center gap-1">
-                        <Monitor className="w-3 h-3 text-cyan-400" />
-                        <span>{boxCount} {boxCount === 1 ? 'Caja' : 'Cajas'}</span>
+                      <div className="text-[11px] text-slate-400 flex items-center justify-between">
+                        <div className="flex items-center gap-1">
+                          <Monitor className="w-3 h-3 text-cyan-400" />
+                          <span>{boxCount} {boxCount === 1 ? 'Caja' : 'Cajas'}</span>
+                        </div>
+                        <span className="text-[10px] text-amber-300 font-mono font-semibold" title="Productos en catálogo">📦 {sub.productsCount || 0}</span>
+                      </div>
+                      <div className="text-[10px] text-cyan-300 font-mono font-semibold text-right">
+                        🛒 {sub.salesCount || 0} ventas
                       </div>
                     </div>
 
