@@ -1673,33 +1673,86 @@ export const rejectPendingPayment = async (paymentId, licenseKey, reason = '') =
 };
 
 /**
- * 7. Telemetría global de todas las cajas POS
+ * 7. Telemetría global de todas las cajas POS (Multi-Nodo / Sharding)
  */
 export const fetchAllTelemetryDevices = async () => {
-  const supabase = getSupabaseClient();
-  if (!supabase) return [];
+  const nodes = getAllNodes();
+  if (!nodes || nodes.length === 0) return [];
 
-  try {
-    const { data: devices, error } = await supabase
-      .from('pos_devices')
-      .select('*')
-      .order('last_seen_at', { ascending: false });
+  const allDevices = [];
+  const seenKeys = new Set();
 
-    if (error || !devices) return [];
+  for (const node of nodes) {
+    const supabase = getNodeClient(node.id);
+    if (!supabase) continue;
 
-    return devices.map(d => ({
-      id: d.id,
-      businessId: d.business_id,
-      licenseKey: d.license_key,
-      deviceId: d.device_id,
-      machineName: d.machine_name || 'Caja Registradora',
-      osInfo: d.os_info || 'Windows POS',
-      appVersion: d.app_version || '1.0.0',
-      lastSeenAt: d.last_seen_at || d.created_at
-    }));
-  } catch {
-    return [];
+    try {
+      // 1. Consultar pos_devices
+      const { data: posDevs, error: posErr } = await supabase
+        .from('pos_devices')
+        .select('*')
+        .order('last_seen_at', { ascending: false });
+
+      if (!posErr && posDevs && Array.isArray(posDevs)) {
+        posDevs.forEach(d => {
+          const cleanLic = (d.license_key || '').trim().toUpperCase();
+          const cleanDevId = (d.device_id || 'CAJA-01').trim().toUpperCase();
+          const uniqueKey = `${cleanLic}_${cleanDevId}`;
+          if (seenKeys.has(uniqueKey)) return;
+          seenKeys.add(uniqueKey);
+
+          allDevices.push({
+            id: d.id,
+            businessId: d.business_id,
+            licenseKey: cleanLic,
+            deviceId: d.device_id || 'CAJA-01',
+            machineName: d.machine_name || 'Caja Registradora',
+            osInfo: d.os_info || 'Windows POS',
+            appVersion: d.app_version || '1.0.0',
+            lastSeenAt: d.last_seen_at || d.created_at,
+            nodeId: node.id,
+            nodeName: node.name
+          });
+        });
+      }
+
+      // 2. Consultar connected_devices (esquema alternativo / compatible)
+      const { data: connDevs, error: connErr } = await supabase
+        .from('connected_devices')
+        .select('*')
+        .order('last_ping', { ascending: false });
+
+      if (!connErr && connDevs && Array.isArray(connDevs)) {
+        connDevs.forEach(d => {
+          const cleanLic = (d.license_key || '').trim().toUpperCase();
+          const cleanDevId = (d.device_id || 'CAJA-01').trim().toUpperCase();
+          const uniqueKey = `${cleanLic}_${cleanDevId}`;
+          if (seenKeys.has(uniqueKey)) return;
+          seenKeys.add(uniqueKey);
+
+          allDevices.push({
+            id: d.id,
+            businessId: d.business_id,
+            licenseKey: cleanLic,
+            deviceId: d.device_id || 'CAJA-01',
+            machineName: d.device_name || d.machine_name || 'Caja Registradora',
+            osInfo: d.os_info || 'Windows POS',
+            appVersion: d.app_version || '1.0.0',
+            lastSeenAt: d.last_ping || d.last_seen_at || d.created_at,
+            nodeId: node.id,
+            nodeName: node.name
+          });
+        });
+      }
+    } catch (nodeErr) {
+      console.warn(`Aviso consultando telemetría en nodo ${node.id}:`, nodeErr);
+    }
   }
+
+  // Ordenar dispositivos por última actividad (más recientes primero)
+  allDevices.sort((a, b) => new Date(b.lastSeenAt || 0).getTime() - new Date(a.lastSeenAt || 0).getTime());
+
+  return allDevices;
 };
 
 /**

@@ -32,29 +32,37 @@ export default function TelemetriaTab({ subscriptions = [], onManageDevices }) {
 
   const now = new Date();
 
-  // Enlazar con el nombre de cada comercio
+  // Enlazar con el nombre de cada comercio (búsqueda robusta por clave o ID)
   const businessMap = {};
   subscriptions.forEach(s => {
-    if (s.licenseKey) businessMap[s.licenseKey] = s;
+    if (s.licenseKey) {
+      businessMap[s.licenseKey.trim().toUpperCase()] = s;
+    }
+    if (s.businessId) {
+      businessMap[`biz_${s.businessId}`] = s;
+    }
   });
 
   const enrichedDevices = devices.map(d => {
-    const biz = businessMap[d.licenseKey];
+    const cleanLic = (d.licenseKey || '').trim().toUpperCase();
+    const biz = businessMap[cleanLic] || (d.businessId ? businessMap[`biz_${d.businessId}`] : null);
     const lastSeen = d.lastSeenAt ? new Date(d.lastSeenAt) : new Date(0);
     const diffMinutes = Math.floor((now.getTime() - lastSeen.getTime()) / (1000 * 60));
 
     let status = 'OFFLINE';
-    if (diffMinutes <= 30) {
+    if (diffMinutes <= 30 && diffMinutes >= 0) {
       status = 'ONLINE';
-    } else if (diffMinutes <= 1440) { // 24 horas
+    } else if (diffMinutes <= 1440 && diffMinutes >= 0) { // 24 horas
       status = 'RECENT';
     }
 
     return {
       ...d,
-      businessName: biz?.businessName || 'Comercio Desconocido',
+      businessName: biz?.businessName || d.businessName || 'Comercio Registrado',
       rifDoc: biz?.rifDoc || '',
       planType: biz?.planType || 'ANUAL',
+      nodeId: d.nodeId || biz?.nodeId || 'node-default',
+      nodeName: d.nodeName || biz?.nodeName || 'Nodo 1 - Producción',
       diffMinutes,
       status
     };
@@ -69,7 +77,8 @@ export default function TelemetriaTab({ subscriptions = [], onManageDevices }) {
       (d.businessName || '').toLowerCase().includes(search.toLowerCase()) ||
       (d.licenseKey || '').toLowerCase().includes(search.toLowerCase()) ||
       (d.machineName || '').toLowerCase().includes(search.toLowerCase()) ||
-      (d.deviceId || '').toLowerCase().includes(search.toLowerCase());
+      (d.deviceId || '').toLowerCase().includes(search.toLowerCase()) ||
+      (d.nodeName || '').toLowerCase().includes(search.toLowerCase());
 
     const matchesStatus = filterStatus === 'ALL' || d.status === filterStatus;
     return matchesSearch && matchesStatus;
@@ -217,7 +226,18 @@ export default function TelemetriaTab({ subscriptions = [], onManageDevices }) {
 
                     <td className="py-3 px-3">
                       <p className="font-bold text-white">{d.businessName}</p>
-                      <p className="text-[10px] font-mono text-slate-400">{d.licenseKey}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-[10px] font-mono text-slate-400">{d.licenseKey}</span>
+                        {d.nodeId === 'node-demos' ? (
+                          <span className="px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 text-[9px] font-mono border border-purple-500/30">
+                            🟣 Demos
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-300 text-[9px] font-mono border border-emerald-500/25">
+                            🟢 Prod
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     <td className="py-3 px-3">
@@ -247,8 +267,18 @@ export default function TelemetriaTab({ subscriptions = [], onManageDevices }) {
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            const b = businessMap[d.licenseKey];
-                            if (b) onManageDevices(b);
+                            const cleanLic = (d.licenseKey || '').trim().toUpperCase();
+                            const b = businessMap[cleanLic] || (d.businessId ? businessMap[`biz_${d.businessId}`] : null);
+                            if (b) {
+                              onManageDevices(b);
+                            } else {
+                              onManageDevices({
+                                businessName: d.businessName,
+                                licenseKey: d.licenseKey,
+                                businessId: d.businessId,
+                                nodeId: d.nodeId
+                              });
+                            }
                           }}
                           className="border-slate-700 hover:bg-slate-800 text-slate-300 text-[11px] py-1 px-2.5"
                         >
