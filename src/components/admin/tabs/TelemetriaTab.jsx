@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Radio, Laptop, Monitor, RefreshCw, 
-  Search, Clock, XCircle, Package, ShoppingBag
+  Search, Clock, XCircle, Package, ShoppingBag, Server, Database
 } from 'lucide-react';
 import { fetchAllTelemetryDevices } from '../../../lib/storageService';
 import Button from '../../ui/Button';
@@ -11,6 +11,7 @@ export default function TelemetriaTab({ subscriptions = [], onManageDevices }) {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL'); // 'ALL' | 'ONLINE' | 'RECENT' | 'OFFLINE'
+  const [filterCluster, setFilterCluster] = useState('ALL'); // 'ALL' | 'node-default' | 'node-demos'
 
   const loadTelemetry = async () => {
     setLoading(true);
@@ -56,11 +57,22 @@ export default function TelemetriaTab({ subscriptions = [], onManageDevices }) {
       status = 'RECENT';
     }
 
-    const productsCount = (biz?.productsCount !== undefined && biz?.productsCount !== null)
+    const isDemo = cleanLic.startsWith('VX-DEMO') || 
+                   cleanLic.includes('DEMO') || 
+                   (biz?.planType || '').toUpperCase() === 'DEMO' || 
+                   d.nodeId === 'node-demos' || 
+                   biz?.nodeId === 'node-demos';
+
+    const resolvedNodeId = isDemo ? 'node-demos' : (d.nodeId || biz?.nodeId || 'node-default');
+    const resolvedNodeName = resolvedNodeId === 'node-demos' 
+      ? 'Nodo 2 - Demos / Pruebas (15 Días)' 
+      : 'Nodo 1 - Producción (Clientes Pagos)';
+
+    const productsCount = (biz?.productsCount !== undefined && biz?.productsCount !== null && biz?.productsCount > 0)
       ? biz.productsCount
       : (d.productsCount || 0);
 
-    const salesCount = (biz?.salesCount !== undefined && biz?.salesCount !== null)
+    const salesCount = (biz?.salesCount !== undefined && biz?.salesCount !== null && biz?.salesCount > 0)
       ? biz.salesCount
       : (d.salesCount || 0);
 
@@ -68,9 +80,9 @@ export default function TelemetriaTab({ subscriptions = [], onManageDevices }) {
       ...d,
       businessName: biz?.businessName || d.businessName || 'Comercio Registrado',
       rifDoc: biz?.rifDoc || '',
-      planType: biz?.planType || 'ANUAL',
-      nodeId: d.nodeId || biz?.nodeId || 'node-default',
-      nodeName: d.nodeName || biz?.nodeName || 'Nodo 1 - Producción',
+      planType: isDemo ? 'DEMO' : (biz?.planType || 'ANUAL'),
+      nodeId: resolvedNodeId,
+      nodeName: resolvedNodeName,
       productsCount,
       salesCount,
       diffMinutes,
@@ -78,21 +90,37 @@ export default function TelemetriaTab({ subscriptions = [], onManageDevices }) {
     };
   });
 
-  const onlineCount = enrichedDevices.filter(d => d.status === 'ONLINE').length;
-  const recentCount = enrichedDevices.filter(d => d.status === 'RECENT').length;
-  const offlineCount = enrichedDevices.filter(d => d.status === 'OFFLINE').length;
+  // Conteo de cajas por clúster
+  const prodDevicesCount = enrichedDevices.filter(d => d.nodeId !== 'node-demos').length;
+  const demoDevicesCount = enrichedDevices.filter(d => d.nodeId === 'node-demos').length;
+
+  // Dispositivos base para métricas según clúster seleccionado
+  const clusterDevices = enrichedDevices.filter(d => {
+    if (filterCluster === 'ALL') return true;
+    if (filterCluster === 'node-demos') return d.nodeId === 'node-demos';
+    return d.nodeId !== 'node-demos';
+  });
+
+  const onlineCount = clusterDevices.filter(d => d.status === 'ONLINE').length;
+  const recentCount = clusterDevices.filter(d => d.status === 'RECENT').length;
+  const offlineCount = clusterDevices.filter(d => d.status === 'OFFLINE').length;
 
   // Calcular total de productos y ventas en la flota (deduplicado por negocio)
   const uniqueBizMap = new Map();
-  enrichedDevices.forEach(d => {
+  clusterDevices.forEach(d => {
     const key = d.businessId || d.licenseKey;
     if (!uniqueBizMap.has(key)) {
       uniqueBizMap.set(key, { products: d.productsCount || 0, sales: d.salesCount || 0 });
     }
   });
-  // Si no hay dispositivos aún, tomar de subscriptions
+
+  // Si no hay dispositivos aún, tomar de subscriptions según clúster
   if (uniqueBizMap.size === 0 && subscriptions.length > 0) {
-    subscriptions.forEach(s => {
+    subscriptions.filter(s => {
+      if (filterCluster === 'ALL') return true;
+      if (filterCluster === 'node-demos') return s.nodeId === 'node-demos' || (s.licenseKey || '').startsWith('VX-DEMO');
+      return s.nodeId !== 'node-demos' && !(s.licenseKey || '').startsWith('VX-DEMO');
+    }).forEach(s => {
       uniqueBizMap.set(s.businessId || s.licenseKey, { products: s.productsCount || 0, sales: s.salesCount || 0 });
     });
   }
@@ -106,10 +134,14 @@ export default function TelemetriaTab({ subscriptions = [], onManageDevices }) {
       (d.licenseKey || '').toLowerCase().includes(search.toLowerCase()) ||
       (d.machineName || '').toLowerCase().includes(search.toLowerCase()) ||
       (d.deviceId || '').toLowerCase().includes(search.toLowerCase()) ||
-      (d.nodeName || '').toLowerCase().includes(search.toLowerCase());
+      (d.nodeName || '').toLowerCase().includes(search.toLowerCase()) ||
+      (d.nodeId || '').toLowerCase().includes(search.toLowerCase());
 
     const matchesStatus = filterStatus === 'ALL' || d.status === filterStatus;
-    return matchesSearch && matchesStatus;
+    const matchesCluster = filterCluster === 'ALL' || 
+      (filterCluster === 'node-demos' ? d.nodeId === 'node-demos' : d.nodeId !== 'node-demos');
+
+    return matchesSearch && matchesStatus && matchesCluster;
   });
 
   return (
@@ -121,8 +153,10 @@ export default function TelemetriaTab({ subscriptions = [], onManageDevices }) {
             <span className="text-xs font-semibold uppercase tracking-wider">Total Cajas POS</span>
             <Laptop className="w-4 h-4 text-indigo-400" />
           </div>
-          <p className="text-2xl font-black font-mono text-white mt-2">{devices.length}</p>
-          <p className="text-xs text-slate-400 mt-1">Dispositivos vinculados</p>
+          <p className="text-2xl font-black font-mono text-white mt-2">{clusterDevices.length}</p>
+          <p className="text-xs text-slate-400 mt-1">
+            {filterCluster === 'ALL' ? 'Toda la red' : filterCluster === 'node-demos' ? 'Clúster Demos' : 'Clúster Producción'}
+          </p>
         </div>
 
         <div className="bg-slate-900/80 border border-emerald-500/30 rounded-2xl p-4">
@@ -204,6 +238,7 @@ export default function TelemetriaTab({ subscriptions = [], onManageDevices }) {
             />
           </div>
 
+          {/* Estado de Conexión */}
           <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
             {['ALL', 'ONLINE', 'RECENT', 'OFFLINE'].map((status) => (
               <button
@@ -211,7 +246,7 @@ export default function TelemetriaTab({ subscriptions = [], onManageDevices }) {
                 onClick={() => setFilterStatus(status)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                   filterStatus === status
-                    ? 'bg-indigo-600 text-white'
+                    ? 'bg-indigo-600 text-white shadow-md'
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
@@ -219,6 +254,64 @@ export default function TelemetriaTab({ subscriptions = [], onManageDevices }) {
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Filtro por Clúster / Nodo Supabase */}
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/5">
+          <span className="text-xs font-semibold text-slate-400 flex items-center gap-1.5 mr-1">
+            <Server className="w-3.5 h-3.5 text-indigo-400" />
+            Filtrar por Clúster:
+          </span>
+
+          <button
+            onClick={() => setFilterCluster('ALL')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 border ${
+              filterCluster === 'ALL'
+                ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/30'
+                : 'bg-slate-950/80 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+            }`}
+          >
+            <span>🌐 Todos los Clústeres</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
+              filterCluster === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'
+            }`}>
+              {enrichedDevices.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setFilterCluster('node-default')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 border ${
+              filterCluster === 'node-default'
+                ? 'bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-600/30'
+                : 'bg-slate-950/80 border-slate-800 text-slate-400 hover:text-emerald-300 hover:border-emerald-500/40'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+            <span>🟢 Nodo 1 - Producción</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
+              filterCluster === 'node-default' ? 'bg-white/20 text-white' : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20'
+            }`}>
+              {prodDevicesCount}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setFilterCluster('node-demos')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 border ${
+              filterCluster === 'node-demos'
+                ? 'bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-600/30'
+                : 'bg-slate-950/80 border-slate-800 text-slate-400 hover:text-purple-300 hover:border-purple-500/40'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-purple-400" />
+            <span>🟣 Nodo 2 - Demos / Pruebas</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
+              filterCluster === 'node-demos' ? 'bg-white/20 text-white' : 'bg-purple-500/15 text-purple-300 border border-purple-500/20'
+            }`}>
+              {demoDevicesCount}
+            </span>
+          </button>
         </div>
 
         {/* Devices Table */}
@@ -263,16 +356,20 @@ export default function TelemetriaTab({ subscriptions = [], onManageDevices }) {
                     </td>
 
                     <td className="py-3 px-3">
-                      <p className="font-bold text-white">{d.businessName}</p>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="text-[10px] font-mono text-slate-400">{d.licenseKey}</span>
+                      <p className="font-bold text-white text-sm">{d.businessName}</p>
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        <span className="text-[11px] font-mono font-semibold text-slate-300 bg-slate-950/90 px-1.5 py-0.5 rounded border border-white/10">
+                          {d.licenseKey}
+                        </span>
                         {d.nodeId === 'node-demos' ? (
-                          <span className="px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 text-[9px] font-mono border border-purple-500/30">
-                            🟣 Demos
+                          <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-[10px] font-mono font-bold border border-purple-500/40 inline-flex items-center gap-1 shadow-sm">
+                            <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
+                            🟣 Demos (Nodo 2)
                           </span>
                         ) : (
-                          <span className="px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-300 text-[9px] font-mono border border-emerald-500/25">
-                            🟢 Prod
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 text-[10px] font-mono font-bold border border-emerald-500/30 inline-flex items-center gap-1 shadow-sm">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                            🟢 Prod (Nodo 1)
                           </span>
                         )}
                       </div>

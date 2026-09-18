@@ -19,7 +19,10 @@ export const fetchAllBusinesses = async () => {
   let hasSuccessfulConnection = false;
   const seenLicenseKeys = new Set();
 
-  for (const node of nodes) {
+  // Ordenar nodos para procesar primero node-demos y garantizar que comercios demo se asignen a su nodo oficial
+  const sortedNodes = [...nodes].sort((a, b) => (b.id === 'node-demos' ? 1 : -1));
+
+  for (const node of sortedNodes) {
     const supabase = getNodeClient(node.id);
     if (!supabase) continue;
 
@@ -143,8 +146,8 @@ export const fetchAllBusinesses = async () => {
           whatsapp_receipts: true
         };
 
-        const isPlanDemo = (planType || '').toUpperCase() === 'DEMO';
-        const resolvedNodeId = isPlanDemo ? (biz.node_id === 'node-default' ? 'node-default' : 'node-demos') : (biz.node_id || 'node-default');
+        const isPlanDemo = (planType || '').toUpperCase() === 'DEMO' || licenseKey.startsWith('VX-DEMO');
+        const resolvedNodeId = isPlanDemo ? 'node-demos' : (biz.node_id === 'node-demos' ? 'node-demos' : (biz.node_id || node.id || 'node-default'));
         const resolvedNodeName = resolvedNodeId === 'node-demos' ? 'Nodo 2 - Demos / Pruebas (15 Días)' : 'Nodo 1 - Producción (Clientes Pagos)';
 
         cloudList.push({
@@ -189,8 +192,8 @@ export const fetchAllBusinesses = async () => {
           const paymentsCount = paymentCountMap[sub.business_id] || paymentCountMap[licenseKey] || 0;
           const connectedDevices = devicesCountMap[licenseKey] || 0;
 
-          const isDemoSub = (sub.plan_type || '').toUpperCase() === 'DEMO';
-          const resolvedSubNodeId = isDemoSub ? 'node-demos' : (sub.node_id || 'node-default');
+          const isDemoSub = (sub.plan_type || '').toUpperCase() === 'DEMO' || licenseKey.startsWith('VX-DEMO');
+          const resolvedSubNodeId = isDemoSub ? 'node-demos' : (sub.node_id === 'node-demos' ? 'node-demos' : (sub.node_id || node.id || 'node-default'));
           const resolvedSubNodeName = resolvedSubNodeId === 'node-demos' ? 'Nodo 2 - Demos / Pruebas (15 Días)' : 'Nodo 1 - Producción (Clientes Pagos)';
 
           cloudList.push({
@@ -1702,10 +1705,12 @@ export const fetchAllTelemetryDevices = async () => {
   const nodes = getAllNodes();
   if (!nodes || nodes.length === 0) return [];
 
+  // Procesar node-demos primero para priorizar telemetría del cluster de pruebas
+  const sortedNodes = [...nodes].sort((a, b) => (b.id === 'node-demos' ? 1 : -1));
   const allDevices = [];
   const seenKeys = new Set();
 
-  for (const node of nodes) {
+  for (const node of sortedNodes) {
     const supabase = getNodeClient(node.id);
     if (!supabase) continue;
 
@@ -1741,6 +1746,12 @@ export const fetchAllTelemetryDevices = async () => {
           if (seenKeys.has(uniqueKey)) return;
           seenKeys.add(uniqueKey);
 
+          const isDemo = cleanLic.startsWith('VX-DEMO') || node.id === 'node-demos';
+          const resolvedNodeId = isDemo ? 'node-demos' : (node.id || 'node-default');
+          const resolvedNodeName = resolvedNodeId === 'node-demos' 
+            ? 'Nodo 2 - Demos / Pruebas (15 Días)' 
+            : (node.name || 'Nodo 1 - Producción (Clientes Pagos)');
+
           allDevices.push({
             id: d.id,
             businessId: d.business_id,
@@ -1750,8 +1761,8 @@ export const fetchAllTelemetryDevices = async () => {
             osInfo: d.os_info || 'Windows POS',
             appVersion: d.app_version || '1.0.0',
             lastSeenAt: d.last_seen_at || d.created_at,
-            nodeId: node.id,
-            nodeName: node.name,
+            nodeId: resolvedNodeId,
+            nodeName: resolvedNodeName,
             productsCount: prodsCountMap[d.business_id] || 0,
             salesCount: salesCountMap[d.business_id] || 0
           });
@@ -1766,6 +1777,12 @@ export const fetchAllTelemetryDevices = async () => {
           if (seenKeys.has(uniqueKey)) return;
           seenKeys.add(uniqueKey);
 
+          const isDemo = cleanLic.startsWith('VX-DEMO') || node.id === 'node-demos';
+          const resolvedNodeId = isDemo ? 'node-demos' : (node.id || 'node-default');
+          const resolvedNodeName = resolvedNodeId === 'node-demos' 
+            ? 'Nodo 2 - Demos / Pruebas (15 Días)' 
+            : (node.name || 'Nodo 1 - Producción (Clientes Pagos)');
+
           allDevices.push({
             id: d.id,
             businessId: d.business_id,
@@ -1775,8 +1792,8 @@ export const fetchAllTelemetryDevices = async () => {
             osInfo: d.os_info || 'Windows POS',
             appVersion: d.app_version || '1.0.0',
             lastSeenAt: d.last_ping || d.last_seen_at || d.created_at,
-            nodeId: node.id,
-            nodeName: node.name,
+            nodeId: resolvedNodeId,
+            nodeName: resolvedNodeName,
             productsCount: prodsCountMap[d.business_id] || 0,
             salesCount: salesCountMap[d.business_id] || 0
           });

@@ -40,9 +40,15 @@ export default async function handler(req, res) {
   }
 
   const searchKey = rawKey.toString().trim().toUpperCase();
+  const isDemoSearch = searchKey.startsWith('VX-DEMO') || searchKey.includes('DEMO');
+
+  // Si es clave DEMO, consultar primero el clúster de Demos (Nodo 2)
+  const sortedNodes = isDemoSearch
+    ? [...CLUSTER_NODES].sort((a, b) => (b.id === 'node-demos' ? 1 : -1))
+    : CLUSTER_NODES;
 
   // Consultar a través de los nodos disponibles
-  for (const node of CLUSTER_NODES) {
+  for (const node of sortedNodes) {
     try {
       const client = createClient(node.url, node.anonKey, {
         auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
@@ -86,12 +92,12 @@ export default async function handler(req, res) {
         if (isSuspended) calculatedStatus = 'SUSPENDIDA';
         else if (isExpired) calculatedStatus = 'VENCIDA';
 
-        const isDemo = (sub.plan_type || '').toUpperCase() === 'DEMO';
+        const isDemo = (sub.plan_type || '').toUpperCase() === 'DEMO' || searchKey.startsWith('VX-DEMO');
         let assignedNode = node;
-        if (sub.businesses?.node_id) {
-          assignedNode = CLUSTER_NODES.find(n => n.id === sub.businesses.node_id) || node;
-        } else if (isDemo) {
+        if (isDemo) {
           assignedNode = CLUSTER_NODES.find(n => n.id === 'node-demos') || node;
+        } else if (sub.businesses?.node_id) {
+          assignedNode = CLUSTER_NODES.find(n => n.id === sub.businesses.node_id) || node;
         } else {
           assignedNode = CLUSTER_NODES.find(n => n.id === 'node-default') || node;
         }
@@ -106,6 +112,7 @@ export default async function handler(req, res) {
           ok: true,
           status: calculatedStatus,
           license_key: sub.license_key,
+          business_id: sub.business_id || sub.businesses?.id,
           business_name: sub.businesses?.name || 'Comercio Registrado',
           business_type: resolvedBusinessType,
           rif: sub.businesses?.rif_doc || '',
