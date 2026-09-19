@@ -325,6 +325,11 @@ export const createNewBusiness = async (businessData) => {
   }
 
   // 3. Inserción en la tabla 'subscriptions'
+  const rubroNote = businessType ? `Rubro: ${businessType}` : '';
+  const initialNotes = notes?.trim()
+    ? (notes.includes('Rubro:') ? notes.trim() : `${notes.trim()} - ${rubroNote}`.trim())
+    : rubroNote;
+
   const subPayload = {
     business_id: bizData.id,
     license_key: licenseKey,
@@ -335,7 +340,7 @@ export const createNewBusiness = async (businessData) => {
     start_date: startDate.toISOString(),
     expiration_date: expDate.toISOString(),
     last_verified_at: startDate.toISOString(),
-    notes: notes?.trim() || null
+    notes: initialNotes || null
   };
 
   const { data: subData, error: subErr } = await supabase
@@ -1126,7 +1131,6 @@ export const updateBusinessInfo = async (licenseKey, updatedData) => {
         phone,
         email,
         contact_person: contact,
-        business_type: updatedData.businessType || undefined,
         updated_at: new Date().toISOString()
       })
       .eq('id', subData.business_id);
@@ -1141,7 +1145,6 @@ export const updateBusinessInfo = async (licenseKey, updatedData) => {
         phone,
         email,
         contact_person: contact,
-        business_type: updatedData.businessType || undefined,
         updated_at: new Date().toISOString()
       })
       .eq('license_key', licenseKey);
@@ -1149,12 +1152,26 @@ export const updateBusinessInfo = async (licenseKey, updatedData) => {
     if (bizErr) throw new Error(`Error al actualizar datos del comercio: ${bizErr.message}`);
   }
 
+  const rubroNote = updatedData.businessType ? `Rubro: ${updatedData.businessType}` : '';
+  let updatedNotes = notes;
+  if (rubroNote) {
+    if (updatedNotes) {
+      if (/Rubro:\s*[a-zA-Z0-9_]+/i.test(updatedNotes)) {
+        updatedNotes = updatedNotes.replace(/Rubro:\s*[a-zA-Z0-9_]+/i, rubroNote);
+      } else {
+        updatedNotes = `${updatedNotes} - ${rubroNote}`;
+      }
+    } else {
+      updatedNotes = rubroNote;
+    }
+  }
+
   const { error: subErr } = await supabase
     .from('subscriptions')
     .update({
       max_boxes: maxBoxes,
       monthly_fee_usd: fee,
-      notes,
+      notes: updatedNotes || null,
       updated_at: new Date().toISOString()
     })
     .eq('license_key', licenseKey);
