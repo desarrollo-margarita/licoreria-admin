@@ -118,8 +118,8 @@ export default function TelemetriaTab({ subscriptions = [], onManageDevices }) {
   if (uniqueBizMap.size === 0 && subscriptions.length > 0) {
     subscriptions.filter(s => {
       if (filterCluster === 'ALL') return true;
-      if (filterCluster === 'node-demos') return s.nodeId === 'node-demos' || (s.licenseKey || '').startsWith('VX-DEMO');
-      return s.nodeId !== 'node-demos' && !(s.licenseKey || '').startsWith('VX-DEMO');
+      if (filterCluster === 'node-demos') return s.nodeId === 'node-demos';
+      return s.nodeId !== 'node-demos';
     }).forEach(s => {
       uniqueBizMap.set(s.businessId || s.licenseKey, { products: s.productsCount || 0, sales: s.salesCount || 0 });
     });

@@ -92,13 +92,12 @@ export default async function handler(req, res) {
         if (isSuspended) calculatedStatus = 'SUSPENDIDA';
         else if (isExpired) calculatedStatus = 'VENCIDA';
 
-        const isDemo = (sub.plan_type || '').toUpperCase() === 'DEMO' || searchKey.startsWith('VX-DEMO');
+        const isPlanDemo = (sub.plan_type || '').toUpperCase() === 'DEMO';
         let assignedNode = node;
-        if (isDemo) {
+        if (isPlanDemo) {
           assignedNode = CLUSTER_NODES.find(n => n.id === 'node-demos') || node;
-        } else if (sub.businesses?.node_id) {
-          assignedNode = CLUSTER_NODES.find(n => n.id === sub.businesses.node_id) || node;
         } else {
+          // Si el plan es de pago (ANUAL, TRIENAL, MENSUAL, etc.), SIEMPRE asignar clúster de Producción
           assignedNode = CLUSTER_NODES.find(n => n.id === 'node-default') || node;
         }
 

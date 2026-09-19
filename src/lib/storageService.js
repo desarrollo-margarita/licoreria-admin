@@ -146,8 +146,8 @@ export const fetchAllBusinesses = async () => {
           whatsapp_receipts: true
         };
 
-        const isPlanDemo = (planType || '').toUpperCase() === 'DEMO' || licenseKey.startsWith('VX-DEMO');
-        const resolvedNodeId = isPlanDemo ? 'node-demos' : (biz.node_id === 'node-demos' ? 'node-demos' : (biz.node_id || node.id || 'node-default'));
+        const isPlanDemo = (planType || '').toUpperCase() === 'DEMO';
+        const resolvedNodeId = node.id || (isPlanDemo ? 'node-demos' : 'node-default');
         const resolvedNodeName = resolvedNodeId === 'node-demos' ? 'Nodo 2 - Demos / Pruebas (15 Días)' : 'Nodo 1 - Producción (Clientes Pagos)';
 
         cloudList.push({
@@ -192,8 +192,8 @@ export const fetchAllBusinesses = async () => {
           const paymentsCount = paymentCountMap[sub.business_id] || paymentCountMap[licenseKey] || 0;
           const connectedDevices = devicesCountMap[licenseKey] || 0;
 
-          const isDemoSub = (sub.plan_type || '').toUpperCase() === 'DEMO' || licenseKey.startsWith('VX-DEMO');
-          const resolvedSubNodeId = isDemoSub ? 'node-demos' : (sub.node_id === 'node-demos' ? 'node-demos' : (sub.node_id || node.id || 'node-default'));
+          const isDemoSub = (sub.plan_type || '').toUpperCase() === 'DEMO';
+          const resolvedSubNodeId = node.id || (isDemoSub ? 'node-demos' : 'node-default');
           const resolvedSubNodeName = resolvedSubNodeId === 'node-demos' ? 'Nodo 2 - Demos / Pruebas (15 Días)' : 'Nodo 1 - Producción (Clientes Pagos)';
 
           cloudList.push({
@@ -223,7 +223,7 @@ export const fetchAllBusinesses = async () => {
         }
       });
     } catch (err) {
-      console.warn(`Error consultando nodo ${node.id} (${node.name}):`, err);
+      console.warn(`Aviso al cargar clientes del nodo ${node.name}:`, err.message);
     }
   }
 
@@ -236,37 +236,38 @@ export const fetchAllBusinesses = async () => {
 };
 
 /**
- * Registra un nuevo comercio directamente en el Nodo Supabase seleccionado
+ * 2. Registrar un nuevo comercio y su primera suscripción directamente en Supabase
  */
-export const registerBusiness = async ({
-  name,
-  rif,
-  phone,
-  contact,
-  email,
-  planType,
-  businessType = 'licoreria',
-  fee,
-  boxes,
-  notes,
-  nodeId = 'node-default'
-}) => {
-  const trimmedName = name?.trim() || '';
-  const trimmedRif = rif?.trim().toUpperCase() || '';
+export const createNewBusiness = async (businessData) => {
+  const {
+    name,
+    rif,
+    rifDoc,
+    phone,
+    email,
+    contact,
+    businessType,
+    planType,
+    fee,
+    boxes,
+    notes,
+    nodeId
+  } = businessData;
 
-  if (!trimmedName) {
-    throw new Error('El nombre del comercio es obligatorio.');
-  }
-  if (!trimmedRif) {
-    throw new Error('El RIF o documento fiscal es obligatorio.');
+  const trimmedName = name?.trim();
+  const trimmedRif = (rifDoc || rif || '').trim().toUpperCase();
+
+  if (!trimmedName || !trimmedRif) {
+    throw new Error('El nombre comercial y el RIF son obligatorios.');
   }
 
-  const supabase = getNodeClient(nodeId);
+  // Si se seleccionó un nodo específico, usar su cliente, sino el default
+  const supabase = nodeId ? getNodeClient(nodeId) : getSupabaseClient();
   if (!supabase) {
-    throw new Error(`No hay conexión con el nodo Supabase seleccionado (${nodeId}).`);
+    throw new Error('Supabase no está configurado o el nodo no está disponible.');
   }
 
-  // 1. Validar que el RIF sea único en el nodo de destino
+  // 1. Validar que el RIF no exista en este nodo
   const { data: existingBiz, error: checkErr } = await supabase
     .from('businesses')
     .select('id, name')
@@ -295,7 +296,7 @@ export const registerBusiness = async ({
 
   const maxBoxes = Math.max(1, parseInt(boxes, 10) || 1);
 
-  // 2. Inserción en la tabla 'businesses'
+  // 2. Inserción en la tabla 'businesses' (solo columnas existentes en el esquema oficial de Supabase)
   const { data: bizData, error: bizErr } = await supabase
     .from('businesses')
     .insert({
@@ -304,10 +305,8 @@ export const registerBusiness = async ({
       phone: phone?.trim() || null,
       email: email?.trim() || null,
       contact_person: contact?.trim() || null,
-      business_type: businessType || 'licoreria',
       license_key: licenseKey,
-      is_active: 1,
-      node_id: nodeId || 'node-default'
+      is_active: 1
     })
     .select()
     .single();
@@ -346,13 +345,22 @@ export const registerBusiness = async ({
     .single();
 
   if (subErr) {
-    // Revertir inserción del negocio para evitar inconsistencias
+    console.error('Error insertando suscripción:', subErr);
+    // Intentar revertir el comercio insertado
     await supabase.from('businesses').delete().eq('id', bizData.id);
-    throw new Error(`Error al registrar la suscripción en Supabase: ${subErr.message}`);
+    throw new Error(`Error al registrar suscripción: ${subErr.message}`);
   }
 
-  const newRecord = {
-    id: bizData.id,
+  await logAuditEvent({
+    actionType: 'CREAR_COMERCIO',
+    description: `Comercio registrado: "${trimmedName}" (${trimmedRif}) con plan ${planType} en ${nodeId || 'nodo principal'}. Clave: ${licenseKey}`,
+    targetBusiness: trimmedName,
+    metadata: { licenseKey, planType, monthlyFeeUsd, maxBoxes }
+  });
+
+  return {
+    id: `${nodeId || 'node-default'}_${bizData.id}`,
+    businessId: bizData.id,
     licenseKey,
     businessName: trimmedName,
     rifDoc: trimmedRif,
@@ -360,26 +368,40 @@ export const registerBusiness = async ({
     email: email?.trim() || '',
     contactPerson: contact?.trim() || '',
     planType: planType || 'ANUAL',
+    businessType: businessType || 'licoreria',
+    nodeId: nodeId || 'node-default',
+    nodeName: nodeId === 'node-demos' ? 'Nodo 2 - Demos / Pruebas (15 Días)' : 'Nodo 1 - Producción (Clientes Pagos)',
     status: 'ACTIVA',
     monthlyFeeUsd,
     maxBoxes,
+    connectedDevices: 0,
+    ltvUsd: 0,
+    paymentsCount: 0,
+    productsCount: 0,
+    salesCount: 0,
+    modulesConfig: {
+      cashea: true,
+      fiscal_printer: true,
+      multi_warehouse: true,
+      kardex: true,
+      restaurant_tables: false,
+      pdf_reports: true,
+      whatsapp_receipts: true
+    },
     expirationDate: expDate.toISOString(),
     startDate: startDate.toISOString(),
-    notes: notes?.trim() || ''
-  };
-
-  return {
-    success: true,
-    licenseKey,
-    record: newRecord,
+    notes: notes?.trim() || '',
     supabaseSynced: true
   };
 };
+
+export const registerBusiness = createNewBusiness;
 
 /**
  * Helper interno para obtener el cliente Supabase correspondiente a una licencia
  */
 export const getClientForLicense = async (licenseKey, preferredNodeId = null) => {
+  const cleanKey = (licenseKey || '').trim().toUpperCase();
   if (preferredNodeId) {
     const client = getNodeClient(preferredNodeId);
     if (client) return { client, nodeId: preferredNodeId };
@@ -392,12 +414,35 @@ export const getClientForLicense = async (licenseKey, preferredNodeId = null) =>
       try {
         const { data } = await client
           .from('businesses')
-          .select('id, node_id')
-          .eq('license_key', licenseKey)
+          .select('id, name, license_key, rif_doc')
+          .eq('license_key', cleanKey)
           .maybeSingle();
 
         if (data) {
-          return { client, nodeId: data.node_id || node.id, business: data };
+          return { client, nodeId: node.id, business: data };
+        }
+      } catch {}
+    }
+  }
+
+  // Si no se encontró por clave directa, buscar en suscripciones (por si fue renombrada o registrada en notas)
+  for (const node of nodes) {
+    const client = getNodeClient(node.id);
+    if (client) {
+      try {
+        const { data: sub } = await client
+          .from('subscriptions')
+          .select('id, business_id, license_key')
+          .or(`license_key.eq.${cleanKey},notes.ilike.%${cleanKey}%`)
+          .maybeSingle();
+
+        if (sub) {
+          const { data: biz } = await client
+            .from('businesses')
+            .select('id, name, license_key, rif_doc')
+            .eq('id', sub.business_id)
+            .maybeSingle();
+          return { client, nodeId: node.id, business: biz || { id: sub.business_id, license_key: sub.license_key } };
         }
       } catch {}
     }
@@ -425,8 +470,10 @@ export const extendBusinessSubscription = async (licenseKey, extraDays = 30, not
     throw new Error(`No se encontró la licencia "${licenseKey}" en Supabase.`);
   }
 
-  const currentExp = data.expiration_date ? new Date(data.expiration_date) : new Date();
-  const baseDate = currentExp < new Date() ? new Date() : currentExp;
+  const baseDate = data.expiration_date && new Date(data.expiration_date) > new Date()
+    ? new Date(data.expiration_date)
+    : new Date();
+
   baseDate.setDate(baseDate.getDate() + extraDays);
 
   const { error: updateErr } = await supabase
@@ -448,7 +495,8 @@ export const extendBusinessSubscription = async (licenseKey, extraDays = 30, not
 export const extendBusinessLicense = extendBusinessSubscription;
 
 /**
- * Cambia el plan único de un comercio directamente en Supabase
+ * Cambia el plan único de un comercio directamente en Supabase,
+ * con soporte para migración total de datos entre clústeres físicos.
  */
 export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId = null, newLicenseKey = null) => {
   const cleanOldKey = (licenseKey || '').trim().toUpperCase();
@@ -460,14 +508,10 @@ export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId =
   const isDemoKey = cleanOldKey.includes('DEMO');
   const isUpgradingToPaid = newPlanType !== 'DEMO' && (isDemoKey || sourceNodeId === 'node-demos');
 
-  // Si pasa a plan de pago y tenía clave DEMO o no se suministró nueva clave, generar automáticamente la clave Pro oficial
+  // Si se suministró nueva clave, usarla. Si no, conservar la clave actual
   let cleanFinalKey = (newLicenseKey || '').trim().toUpperCase();
-  if (!cleanFinalKey || (isUpgradingToPaid && cleanFinalKey.includes('DEMO'))) {
-    if (isUpgradingToPaid) {
-      cleanFinalKey = generateLicenseKey();
-    } else {
-      cleanFinalKey = cleanOldKey;
-    }
+  if (!cleanFinalKey) {
+    cleanFinalKey = cleanOldKey;
   }
 
   let fee = 80.00;
@@ -501,119 +545,207 @@ export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId =
     effectiveTargetNodeId = 'node-default';
   }
 
-  // Si hay reasignación de clúster a otro nodo diferente
-  if (targetNodeId && targetNodeId !== sourceNodeId) {
-    const targetClient = getNodeClient(targetNodeId);
-    if (!targetClient) throw new Error(`Nodo destino ${targetNodeId} no disponible.`);
+  const needsInterClusterMigration = effectiveTargetNodeId && effectiveTargetNodeId !== sourceNodeId;
 
-    const allNodes = getAllNodes();
-    const sourceNode = allNodes.find(n => n.id === sourceNodeId);
-    const targetNode = allNodes.find(n => n.id === targetNodeId);
-    const isDistinctPhysicalDb = sourceNode && targetNode && sourceNode.url !== targetNode.url;
+  // CASO A: Migración entre nodos o clústeres distintos
+  if (needsInterClusterMigration) {
+    const targetClient = getNodeClient(effectiveTargetNodeId);
+    if (!targetClient) throw new Error(`Nodo destino ${effectiveTargetNodeId} no disponible.`);
 
-    if (isDistinctPhysicalDb) {
-      // 1. Extraer comercio del nodo origen
-      const { data: bizData } = await sourceClient
+    // 1. Extraer comercio del nodo origen
+    let { data: bizData } = await sourceClient
+      .from('businesses')
+      .select('*')
+      .eq('license_key', cleanOldKey)
+      .maybeSingle();
+
+    if (!bizData && business?.id) {
+      const { data: bById } = await sourceClient
         .from('businesses')
         .select('*')
-        .eq('license_key', licenseKey)
+        .eq('id', business.id)
         .maybeSingle();
+      bizData = bById;
+    }
 
-      if (bizData) {
-        // Inyectar en nodo destino
-        const targetBiz = { ...bizData, license_key: cleanFinalKey, node_id: targetNodeId, updated_at: new Date().toISOString() };
-        delete targetBiz.id; // Permitir nuevo ID autoincremental en destino
+    if (!bizData) {
+      throw new Error(`No se encontró el registro del comercio con clave ${cleanOldKey} en el nodo ${sourceNodeId}.`);
+    }
 
-        const { data: newBiz } = await targetClient
-          .from('businesses')
-          .upsert(targetBiz, { onConflict: 'license_key' })
-          .select()
-          .single();
+    const oldBizId = bizData.id;
 
-        // Inyectar suscripción en nodo destino
-        // Inyectar suscripción en nodo destino
-        const migrationNote = cleanFinalKey !== cleanOldKey ? `[Clave demo anterior: ${cleanOldKey}]` : '';
-        const existingNotes = (bizData.notes || '').trim();
-        const combinedNotes = existingNotes ? (existingNotes.includes(cleanOldKey) ? existingNotes : `${existingNotes} ${migrationNote}`) : migrationNote;
+    // 2. Inyectar / actualizar en nodo destino (solo columnas que existen en la tabla businesses)
+    const targetBiz = {
+      name: bizData.name,
+      rif_doc: bizData.rif_doc,
+      phone: bizData.phone,
+      email: bizData.email,
+      contact_person: bizData.contact_person,
+      license_key: cleanFinalKey,
+      is_active: 1,
+      modules_config: bizData.modules_config || {
+        cashea: true,
+        fiscal_printer: true,
+        multi_warehouse: true,
+        kardex: true,
+        restaurant_tables: false,
+        pdf_reports: true,
+        whatsapp_receipts: true
+      },
+      updated_at: new Date().toISOString()
+    };
 
-        await targetClient
-          .from('subscriptions')
-          .upsert({
-            business_id: newBiz?.id || bizData.id,
-            license_key: cleanFinalKey,
-            plan_type: newPlanType,
-            monthly_fee_usd: fee,
-            max_boxes: boxes,
-            status: 'ACTIVA',
-            expiration_date: expDate.toISOString(),
-            notes: combinedNotes || null,
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'license_key' });
+    // Verificar si ya existe en destino por license_key o rif_doc
+    const { data: existingTargetBiz } = await targetClient
+      .from('businesses')
+      .select('id')
+      .or(`license_key.eq.${cleanFinalKey},rif_doc.eq.${bizData.rif_doc}`)
+      .maybeSingle();
 
-        // Eliminar del nodo origen para liberar cuota demo
-        await sourceClient.from('subscriptions').delete().eq('license_key', cleanOldKey);
-        await sourceClient.from('businesses').delete().eq('license_key', cleanOldKey);
+    let newBiz;
+    if (existingTargetBiz) {
+      const { data: updatedBiz, error: bizUpdateErr } = await targetClient
+        .from('businesses')
+        .update(targetBiz)
+        .eq('id', existingTargetBiz.id)
+        .select()
+        .single();
+
+      if (bizUpdateErr) {
+        throw new Error(`Error al actualizar comercio en nodo destino: ${bizUpdateErr.message}`);
+      }
+      newBiz = updatedBiz;
+    } else {
+      const { data: insertedBiz, error: bizInsertErr } = await targetClient
+        .from('businesses')
+        .insert(targetBiz)
+        .select()
+        .single();
+
+      if (bizInsertErr) {
+        throw new Error(`Error al migrar comercio al nodo destino: ${bizInsertErr.message}`);
+      }
+      newBiz = insertedBiz;
+    }
+
+    // 3. Crear / actualizar suscripción en nodo destino
+    const migrationNote = cleanFinalKey !== cleanOldKey ? `[Clave demo anterior: ${cleanOldKey}]` : '';
+    const existingNotes = (bizData.notes || '').trim();
+    const combinedNotes = existingNotes 
+      ? (existingNotes.includes(cleanOldKey) ? existingNotes : `${existingNotes} ${migrationNote}`.trim()) 
+      : migrationNote;
+
+    const subPayload = {
+      business_id: newBiz.id,
+      license_key: cleanFinalKey,
+      plan_type: newPlanType,
+      monthly_fee_usd: fee,
+      max_boxes: boxes,
+      status: 'ACTIVA',
+      expiration_date: expDate.toISOString(),
+      notes: combinedNotes || null,
+      updated_at: new Date().toISOString()
+    };
+
+    const { data: existingTargetSub } = await targetClient
+      .from('subscriptions')
+      .select('id')
+      .or(`license_key.eq.${cleanFinalKey},business_id.eq.${newBiz.id}`)
+      .maybeSingle();
+
+    if (existingTargetSub) {
+      const { error: subErr } = await targetClient
+        .from('subscriptions')
+        .update(subPayload)
+        .eq('id', existingTargetSub.id);
+
+      if (subErr) {
+        throw new Error(`Error al actualizar suscripción en clúster destino: ${subErr.message}`);
       }
     } else {
-      // Misma base de datos física: actualizar en el cliente actual directamente
-      const migrationNote = cleanFinalKey !== cleanOldKey ? `[Clave demo anterior: ${cleanOldKey}]` : '';
-      
-      const { data: currentSub } = await targetClient
+      const { error: subErr } = await targetClient
         .from('subscriptions')
-        .select('notes')
-        .eq('license_key', cleanOldKey)
-        .maybeSingle();
+        .insert(subPayload);
 
-      const existingNotes = (currentSub?.notes || '').trim();
-      const combinedNotes = existingNotes ? (existingNotes.includes(cleanOldKey) ? existingNotes : `${existingNotes} ${migrationNote}`) : migrationNote;
-
-      await targetClient
-        .from('subscriptions')
-        .update({
-          license_key: cleanFinalKey,
-          plan_type: newPlanType,
-          monthly_fee_usd: fee,
-          max_boxes: boxes,
-          status: 'ACTIVA',
-          expiration_date: expDate.toISOString(),
-          notes: combinedNotes || null,
-          updated_at: new Date().toISOString()
-        })
-        .eq('license_key', cleanOldKey);
-
-      const bizUpdatePayload = {
-        updated_at: new Date().toISOString(),
-        is_active: 1
-      };
-      if (effectiveTargetNodeId) bizUpdatePayload.node_id = effectiveTargetNodeId;
-      if (cleanFinalKey !== cleanOldKey) bizUpdatePayload.license_key = cleanFinalKey;
-
-      await targetClient
-        .from('businesses')
-        .update(bizUpdatePayload)
-        .eq('license_key', cleanOldKey);
-
-      if (cleanFinalKey !== cleanOldKey) {
-        try {
-          await Promise.allSettled([
-            targetClient.from('payments').update({ license_key: cleanFinalKey }).eq('license_key', cleanOldKey),
-            targetClient.from('pos_devices').update({ license_key: cleanFinalKey }).eq('license_key', cleanOldKey),
-            targetClient.from('support_tickets').update({ license_key: cleanFinalKey }).eq('license_key', cleanOldKey)
-          ]);
-        } catch {}
+      if (subErr) {
+        throw new Error(`Error al crear suscripción en clúster destino: ${subErr.message}`);
       }
+    }
+
+    // 4. Migrar todos los datos operativos y secundarios (cajas, categorías, proveedores, clientes, productos, ventas, usuarios)
+    const tablesToMigrate = [
+      'pos_devices',
+      'categories',
+      'suppliers',
+      'clients',
+      'products',
+      'sales',
+      'users',
+      'payments',
+      'support_tickets'
+    ];
+
+    for (const tbl of tablesToMigrate) {
+      try {
+        const isKeyLinked = tbl === 'pos_devices' || tbl === 'payments' || tbl === 'support_tickets';
+        const query = isKeyLinked
+          ? sourceClient.from(tbl).select('*').or(`business_id.eq.${oldBizId},license_key.eq.${cleanOldKey}`)
+          : sourceClient.from(tbl).select('*').eq('business_id', oldBizId);
+
+        const { data: rows } = await query;
+        if (rows && rows.length > 0) {
+          const migratedRows = rows.map(r => {
+            const copy = { ...r, business_id: newBiz.id };
+            delete copy.id;
+            delete copy.node_id;
+            if (copy.license_key !== undefined) copy.license_key = cleanFinalKey;
+            return copy;
+          });
+
+          // Inserción en bloques de 50 registros para evitar límites de payload
+          for (let i = 0; i < migratedRows.length; i += 50) {
+            const chunk = migratedRows.slice(i, i + 50);
+            await targetClient.from(tbl).insert(chunk);
+          }
+
+          // Eliminar de nodo origen para liberar cuota demo
+          if (isKeyLinked) {
+            await sourceClient.from(tbl).delete().or(`business_id.eq.${oldBizId},license_key.eq.${cleanOldKey}`);
+          } else {
+            await sourceClient.from(tbl).delete().eq('business_id', oldBizId);
+          }
+        }
+      } catch (tblErr) {
+        console.warn(`Aviso migrando tabla operativa "${tbl}":`, tblErr.message);
+      }
+    }
+
+    // 5. Eliminar del nodo origen para liberar cuota demo
+    try {
+      await sourceClient.from('subscriptions').delete().or(`license_key.eq.${cleanOldKey},business_id.eq.${oldBizId}`);
+      await sourceClient.from('businesses').delete().or(`license_key.eq.${cleanOldKey},id.eq.${oldBizId}`);
+    } catch (delErr) {
+      console.warn('Aviso limpiando registros del nodo origen:', delErr.message);
     }
 
     await logAuditEvent({
       actionType: 'PROMOCION_NODO',
-      description: `Comercio ${cleanOldKey} promovido de ${sourceNodeId} a ${effectiveTargetNodeId} con plan ${newPlanType}${cleanFinalKey !== cleanOldKey ? ` (Nueva Clave: ${cleanFinalKey})` : ''}`,
+      description: `Comercio ${cleanOldKey} promovido exitosamente con todos sus datos de ${sourceNodeId} a ${effectiveTargetNodeId} con plan ${newPlanType}${cleanFinalKey !== cleanOldKey ? ` (Nueva Clave: ${cleanFinalKey})` : ''}`,
       targetBusiness: cleanFinalKey
     });
 
-    return { success: true, newPlanType, fee, boxes, expirationDate: expDate, nodeId: effectiveTargetNodeId, licenseKey: cleanFinalKey };
+    return { 
+      success: true, 
+      newPlanType, 
+      fee, 
+      boxes, 
+      expirationDate: expDate, 
+      nodeId: effectiveTargetNodeId, 
+      licenseKey: cleanFinalKey 
+    };
   }
 
-  // Actualización en el mismo nodo
+  // CASO B: Actualización en el mismo nodo físico
   const migrationNote = cleanFinalKey !== cleanOldKey ? `[Clave demo anterior: ${cleanOldKey}]` : '';
   const { data: currentSub } = await sourceClient
     .from('subscriptions')
@@ -622,7 +754,9 @@ export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId =
     .maybeSingle();
 
   const existingNotes = (currentSub?.notes || '').trim();
-  const combinedNotes = existingNotes ? (existingNotes.includes(cleanOldKey) ? existingNotes : `${existingNotes} ${migrationNote}`) : migrationNote;
+  const combinedNotes = existingNotes 
+    ? (existingNotes.includes(cleanOldKey) ? existingNotes : `${existingNotes} ${migrationNote}`.trim()) 
+    : migrationNote;
 
   const { error: subErr } = await sourceClient
     .from('subscriptions')
@@ -645,7 +779,6 @@ export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId =
   const bizUpdate = {
     license_key: cleanFinalKey,
     is_active: 1,
-    node_id: effectiveTargetNodeId || 'node-default',
     updated_at: new Date().toISOString()
   };
 
