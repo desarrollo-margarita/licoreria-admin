@@ -238,11 +238,13 @@ export default function SoporteTab({ businesses = [] }) {
                       {t.description || 'Sin descripción adicional'}
                     </p>
 
-                    <div className="flex items-center gap-3 text-[11px] text-slate-500 font-mono">
+                    <div className="flex items-center gap-3 text-[11px] text-slate-500 font-mono flex-wrap">
                       <span>🏢 {t.businessName}</span>
                       <span>🔑 {t.licenseKey}</span>
+                      {t.category && <span className="text-teal-400 font-semibold">🏷️ {t.category}</span>}
+                      {t.reportedByUser && <span className="text-slate-300">👤 {t.reportedByUser}</span>}
                       <span>📅 {new Date(t.createdAt).toLocaleDateString('es-VE')}</span>
-                      <span>👤 {t.assignedTo}</span>
+                      <span>🎧 {t.assignedTo}</span>
                     </div>
                   </div>
 

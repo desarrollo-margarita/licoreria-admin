@@ -190,6 +190,32 @@ export default function SupportTicketModal({ isOpen, onClose, ticket, businesses
           </div>
         </div>
 
+        {/* Technical Diagnostics from POS app */}
+        {(ticket?.deviceInfo || ticket?.errorTrace || ticket?.reportedByUser) && (
+          <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-xs space-y-1.5">
+            {ticket?.deviceInfo && (
+              <div>
+                <span className="text-slate-400 font-semibold">💻 Diagnóstico POS: </span>
+                <span className="text-slate-200 font-mono text-[11px]">{ticket.deviceInfo}</span>
+              </div>
+            )}
+            {ticket?.reportedByUser && (
+              <div>
+                <span className="text-slate-400 font-semibold">👤 Reportado por: </span>
+                <span className="text-slate-200">{ticket.reportedByUser}</span>
+              </div>
+            )}
+            {ticket?.errorTrace && (
+              <div className="pt-1">
+                <span className="text-rose-400 font-semibold">⚠️ Traza de Error: </span>
+                <pre className="mt-1 p-2 bg-black/60 rounded text-[10.5px] text-rose-300 font-mono max-h-28 overflow-y-auto whitespace-pre-wrap">
+                  {ticket.errorTrace}
+                </pre>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Resolution Notes */}
         {status === 'RESUELTO' && (
           <div className="pt-2">
