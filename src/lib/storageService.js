@@ -1341,6 +1341,55 @@ export const resetBusinessDevices = async (licenseKey) => {
 };
 
 /**
+ * Consulta los dispositivos/cajas registradas para una licencia específica
+ */
+export const fetchDevicesForLicense = async (licenseKey) => {
+  const { client: supabase } = await getClientForLicense(licenseKey);
+  if (!supabase) return [];
+
+  try {
+    const { data, error } = await supabase
+      .from('pos_devices')
+      .select('*')
+      .eq('license_key', licenseKey)
+      .order('last_seen_at', { ascending: false });
+
+    if (error && error.code !== '42P01') {
+      console.warn('Error consultando dispositivos de licencia:', error);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    console.warn('Error al obtener cajas de licencia:', err);
+    return [];
+  }
+};
+
+/**
+ * Elimina una caja o terminal individual de una licencia
+ */
+export const deleteSingleDevice = async (licenseKey, deviceId) => {
+  const { client: supabase } = await getClientForLicense(licenseKey);
+  if (!supabase) throw new Error('Supabase no conectado.');
+
+  try {
+    const { error } = await supabase
+      .from('pos_devices')
+      .delete()
+      .eq('license_key', licenseKey)
+      .eq('device_id', deviceId);
+
+    if (error && error.code !== '42P01') {
+      throw error;
+    }
+
+    return { success: true };
+  } catch (err) {
+    throw new Error(`Error al eliminar caja: ${err.message}`);
+  }
+};
+
+/**
  * Exporta la lista de comercios a formato CSV con formato compatible para Excel
  */
 export const exportBusinessesToCsv = (businesses = []) => {
