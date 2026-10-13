@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Radio, Laptop, Monitor, RefreshCw, 
-  Search, Clock, XCircle, Package, ShoppingBag, Server, Database
+  Search, Clock, XCircle, Server, Database
 } from 'lucide-react';
 import { fetchAllTelemetryDevices } from '../../../lib/storageService';
 import Button from '../../ui/Button';
@@ -101,32 +101,7 @@ export default function TelemetriaTab({ subscriptions = [], onManageDevices }) {
     return d.nodeId !== 'node-demos';
   });
 
-  const onlineCount = clusterDevices.filter(d => d.status === 'ONLINE').length;
-  const recentCount = clusterDevices.filter(d => d.status === 'RECENT').length;
-  const offlineCount = clusterDevices.filter(d => d.status === 'OFFLINE').length;
 
-  // Calcular total de productos y ventas en la flota (deduplicado por negocio)
-  const uniqueBizMap = new Map();
-  clusterDevices.forEach(d => {
-    const key = d.businessId || d.licenseKey;
-    if (!uniqueBizMap.has(key)) {
-      uniqueBizMap.set(key, { products: d.productsCount || 0, sales: d.salesCount || 0 });
-    }
-  });
-
-  // Si no hay dispositivos aún, tomar de subscriptions según clúster
-  if (uniqueBizMap.size === 0 && subscriptions.length > 0) {
-    subscriptions.filter(s => {
-      if (filterCluster === 'ALL') return true;
-      if (filterCluster === 'node-demos') return s.nodeId === 'node-demos';
-      return s.nodeId !== 'node-demos';
-    }).forEach(s => {
-      uniqueBizMap.set(s.businessId || s.licenseKey, { products: s.productsCount || 0, sales: s.salesCount || 0 });
-    });
-  }
-
-  const totalProducts = Array.from(uniqueBizMap.values()).reduce((sum, b) => sum + b.products, 0);
-  const totalSales = Array.from(uniqueBizMap.values()).reduce((sum, b) => sum + b.sales, 0);
 
   const filteredDevices = enrichedDevices.filter(d => {
     const matchesSearch = 
@@ -146,59 +121,6 @@ export default function TelemetriaTab({ subscriptions = [], onManageDevices }) {
 
   return (
     <div className="space-y-6">
-      {/* Metrics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="bg-slate-900/80 border border-white/10 rounded-2xl p-4">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total Cajas POS</span>
-            <Laptop className="w-4 h-4 text-indigo-400" />
-          </div>
-          <p className="text-2xl font-black font-mono text-white mt-2">{clusterDevices.length}</p>
-          <p className="text-xs text-slate-400 mt-1">
-            {filterCluster === 'ALL' ? 'Toda la red' : filterCluster === 'node-demos' ? 'Clúster Demos' : 'Clúster Producción'}
-          </p>
-        </div>
-
-        <div className="bg-slate-900/80 border border-emerald-500/30 rounded-2xl p-4">
-          <div className="flex items-center justify-between text-emerald-400">
-            <span className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              Online Ahora
-            </span>
-            <Radio className="w-4 h-4 text-emerald-400" />
-          </div>
-          <p className="text-2xl font-black font-mono text-emerald-400 mt-2">{onlineCount}</p>
-          <p className="text-xs text-slate-400 mt-1">Activas en los últimos 30 min</p>
-        </div>
-
-        <div className="bg-slate-900/80 border border-amber-500/30 rounded-2xl p-4">
-          <div className="flex items-center justify-between text-amber-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Productos en Red</span>
-            <Package className="w-4 h-4 text-amber-400" />
-          </div>
-          <p className="text-2xl font-black font-mono text-amber-300 mt-2">{totalProducts}</p>
-          <p className="text-xs text-slate-400 mt-1">En catálogo de comercios</p>
-        </div>
-
-        <div className="bg-slate-900/80 border border-cyan-500/30 rounded-2xl p-4">
-          <div className="flex items-center justify-between text-cyan-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Ventas Nube</span>
-            <ShoppingBag className="w-4 h-4 text-cyan-400" />
-          </div>
-          <p className="text-2xl font-black font-mono text-cyan-300 mt-2">{totalSales}</p>
-          <p className="text-xs text-slate-400 mt-1">Ventas procesadas</p>
-        </div>
-
-        <div className="bg-slate-900/80 border border-slate-700 rounded-2xl p-4">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Inactivas / Offline</span>
-            <XCircle className="w-4 h-4 text-slate-500" />
-          </div>
-          <p className="text-2xl font-black font-mono text-slate-300 mt-2">{offlineCount}</p>
-          <p className="text-xs text-slate-400 mt-1">&gt; 24h sin actividad</p>
-        </div>
-      </div>
-
       {/* Control Bar & Search */}
       <div className="bg-slate-900/90 border border-white/10 rounded-2xl p-6 space-y-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
