@@ -2302,5 +2302,188 @@ export const migrateDatabase = async ({
   };
 };
 
+/**
+ * Resetea y vacía las ventas y la contabilidad de un comercio específico en Supabase,
+ * CONSERVANDO 100% INTACTO:
+ * - Productos y stock actual (products, product_presentations)
+ * - Combos y sus recetas (combos, combo_items)
+ * - Categorías (categories)
+ * - Proveedores (suppliers)
+ * - Clientes (clients, reiniciando su deuda actual a 0)
+ * - Usuarios y cajeros (users)
+ * - Cajas y terminales vinculadas (pos_devices)
+ * - Licencia y vigencia activa (businesses, subscriptions)
+ *
+ * Además, estampa 'reset_accounting_at' en 'modules_config' para que las cajas físicas (POS)
+ * detecten la orden vía Realtime/SyncEngine y ejecuten la limpieza en su SQLite local,
+ * garantizando cero desincronización y cero re-subida de ventas viejas.
+ */
+export const resetBusinessSalesAndAccounting = async (licenseKey, businessId) => {
+  const { client: supabase, nodeId, business } = await getClientForLicense(licenseKey);
+  if (!supabase) {
+    throw new Error('Supabase no está configurado o conectado.');
+  }
+
+  const targetBizId = businessId || business?.id;
+  if (!targetBizId) {
+    throw new Error('No se pudo determinar el ID del comercio para el reseteo.');
+  }
+
+  const resetTimestamp = new Date().toISOString();
+
+  // 1. Obtener IDs de ventas para limpiar renglones de items y abonos
+  let saleIds = [];
+  try {
+    const { data: salesData } = await supabase
+      .from('sales')
+      .select('id')
+      .eq('business_id', targetBizId);
+    if (salesData && salesData.length > 0) {
+      saleIds = salesData.map(s => s.id);
+    }
+  } catch (err) {
+    console.warn('Aviso al buscar ventas previas para reseteo:', err);
+  }
+
+  // 2. Limpiar renglones de items de venta y abonos de clientes
+  if (saleIds.length > 0) {
+    // Dividir en bloques de 100 si son muchos IDs
+    const chunkSize = 100;
+    for (let i = 0; i < saleIds.length; i += chunkSize) {
+      const chunk = saleIds.slice(i, i + chunkSize);
+      try {
+        await supabase.from('sale_items').delete().in('sale_id', chunk);
+      } catch (_) {}
+      try {
+        await supabase.from('credit_payments').delete().in('sale_id', chunk);
+      } catch (_) {}
+    }
+  }
+
+  // 3. Eliminar ventas principales de la tabla 'sales'
+  const { error: salesErr } = await supabase
+    .from('sales')
+    .delete()
+    .eq('business_id', targetBizId);
+
+  if (salesErr) {
+    throw new Error(`Error al eliminar ventas en Supabase: ${salesErr.message}`);
+  }
+
+  // 4. Limpiar turnos y arqueos de caja ('cash_shifts')
+  try {
+    await supabase.from('cash_shifts').delete().eq('business_id', targetBizId);
+  } catch (err) {
+    console.warn('Aviso al limpiar cash_shifts:', err);
+  }
+
+  // 5. Limpiar compras y cuentas por pagar ('purchases', 'purchase_items', 'supplier_payments')
+  try {
+    const { data: purchasesData } = await supabase
+      .from('purchases')
+      .select('id')
+      .eq('business_id', targetBizId);
+
+    if (purchasesData && purchasesData.length > 0) {
+      const purchaseIds = purchasesData.map(p => p.id);
+      const chunkSize = 100;
+      for (let i = 0; i < purchaseIds.length; i += chunkSize) {
+        const chunk = purchaseIds.slice(i, i + chunkSize);
+        try {
+          await supabase.from('purchase_items').delete().in('purchase_id', chunk);
+        } catch (_) {}
+        try {
+          await supabase.from('supplier_payments').delete().in('purchase_id', chunk);
+        } catch (_) {}
+      }
+    }
+
+    await supabase.from('purchases').delete().eq('business_id', targetBizId);
+  } catch (err) {
+    console.warn('Aviso al limpiar compras y cuentas por pagar:', err);
+  }
+
+  // 6. Limpiar gastos y retiros de efectivo ('admin_withdrawals')
+  try {
+    await supabase.from('admin_withdrawals').delete().eq('business_id', targetBizId);
+  } catch (err) {
+    console.warn('Aviso al limpiar admin_withdrawals:', err);
+  }
+
+  // 7. Limpiar movimientos de Kardex causados por ventas ('VENTA', 'VENTA_ANULADA')
+  // Conservando los movimientos de inventario inicial, compras o ajustes manuales
+  try {
+    await supabase
+      .from('kardex_movements')
+      .delete()
+      .eq('business_id', targetBizId)
+      .in('movement_type', ['VENTA', 'VENTA_ANULADA']);
+  } catch (err) {
+    console.warn('Aviso al depurar kardex de ventas:', err);
+  }
+
+  // 8. Resetear saldos deudores de clientes a $0.00 (sin borrar la ficha del cliente)
+  try {
+    await supabase
+      .from('clients')
+      .update({ current_debt_usd: 0 })
+      .eq('business_id', targetBizId);
+  } catch (err) {
+    console.warn('Aviso al resetear saldo de clientes:', err);
+  }
+
+  // 9. Actualizar 'modules_config' con 'reset_accounting_at' en 'businesses'
+  // Esto transmite la señal OTA en tiempo real a las terminales POS para auto-limpiar SQLite
+  let businessName = business?.name || licenseKey;
+  try {
+    const { data: bizRecord } = await supabase
+      .from('businesses')
+      .select('modules_config, name')
+      .eq('id', targetBizId)
+      .maybeSingle();
+
+    if (bizRecord?.name) {
+      businessName = bizRecord.name;
+    }
+
+    let existingModules = {};
+    if (bizRecord?.modules_config) {
+      existingModules = typeof bizRecord.modules_config === 'object'
+        ? bizRecord.modules_config
+        : JSON.parse(bizRecord.modules_config);
+    }
+
+    const updatedModules = {
+      ...existingModules,
+      reset_accounting_at: resetTimestamp
+    };
+
+    await supabase
+      .from('businesses')
+      .update({
+        modules_config: updatedModules,
+        updated_at: resetTimestamp
+      })
+      .eq('id', targetBizId);
+  } catch (err) {
+    console.warn('Aviso al estampar reset_accounting_at en businesses:', err);
+  }
+
+  // 10. Registrar evento en log de auditoría
+  await logAuditEvent({
+    actionType: 'RESET_VENTAS_CONTABILIDAD',
+    description: `Ventas y contabilidad reseteadas a cero para "${businessName}" (Licencia: ${licenseKey}, Nodo: ${nodeId || 'principal'}). Catálogo de productos y combos preservado al 100%.`,
+    targetBusiness: businessName
+  });
+
+  return {
+    success: true,
+    resetTimestamp,
+    businessId: targetBizId,
+    businessName
+  };
+};
+
+
 
 

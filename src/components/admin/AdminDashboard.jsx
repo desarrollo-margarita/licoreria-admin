@@ -25,6 +25,7 @@ import RecordPaymentModal from './RecordPaymentModal';
 import PaymentHistoryModal from './PaymentHistoryModal';
 import WhatsAppTemplateModal from './WhatsAppTemplateModal';
 import DeviceManagerModal from './DeviceManagerModal';
+import ResetAccountingModal from './ResetAccountingModal';
 import ReceiptModal from './ReceiptModal';
 import FeatureFlagsModal from './FeatureFlagsModal';
 import ClientPaymentPortalModal from './ClientPaymentPortalModal';
@@ -81,6 +82,7 @@ export default function AdminDashboard({ onBackToLanding }) {
   const [selectedBusinessForWhatsApp, setSelectedBusinessForWhatsApp] = useState(null);
   const [selectedBusinessForDevices, setSelectedBusinessForDevices] = useState(null);
   const [selectedBusinessForFlags, setSelectedBusinessForFlags] = useState(null);
+  const [selectedBusinessForResetAccounting, setSelectedBusinessForResetAccounting] = useState(null);
   const [selectedPaymentForReceipt, setSelectedPaymentForReceipt] = useState(null);
   const [selectedBusinessForReceipt, setSelectedBusinessForReceipt] = useState(null);
 
@@ -604,6 +606,7 @@ export default function AdminDashboard({ onBackToLanding }) {
                 onOpenPaymentHistory={(biz) => setSelectedBusinessForHistory(biz)}
                 onOpenDeviceManager={(biz) => setSelectedBusinessForDevices(biz)}
                 onOpenFeatureFlags={(biz) => setSelectedBusinessForFlags(biz)}
+                onResetAccounting={(biz) => setSelectedBusinessForResetAccounting(biz)}
                 onDeleteBusiness={handleDeleteBusiness}
                 onExportCsv={(list) => {
                   exportBusinessesToCsv(list);
@@ -766,6 +769,16 @@ export default function AdminDashboard({ onBackToLanding }) {
         onClose={() => setSelectedBusinessForFlags(null)}
         onSaved={() => {
           showToast('Configuración de módulos y aliado actualizada.');
+          checkAndFetch();
+        }}
+      />
+
+      <ResetAccountingModal
+        isOpen={!!selectedBusinessForResetAccounting}
+        business={selectedBusinessForResetAccounting}
+        onClose={() => setSelectedBusinessForResetAccounting(null)}
+        onAccountingReset={(msg) => {
+          showToast(msg);
           checkAndFetch();
         }}
       />

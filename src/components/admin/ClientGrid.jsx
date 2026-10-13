@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { 
   Store, Copy, MessageCircle, Play, Pause, Search, Calendar, Sparkles, 
   Edit3, LayoutList, LayoutGrid, Monitor, Check, 
-  DollarSign, Receipt, Download, Sliders, Database, KeyRound, RefreshCw, Trash2
+  DollarSign, Receipt, Download, Sliders, Database, KeyRound, RefreshCw, Trash2,
+  RotateCcw
 } from 'lucide-react';
 import Badge from '../ui/Badge';
 import { formatDate, getDaysRemaining } from '../../lib/licenseUtils';
@@ -27,6 +28,7 @@ export default function ClientGrid({
   onOpenPaymentHistory,
   onOpenDeviceManager,
   onOpenFeatureFlags,
+  onResetAccounting,
   onDeleteBusiness,
   onExportCsv
 }) {
@@ -521,6 +523,16 @@ export default function ClientGrid({
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
 
+                          {/* Reset Sales & Accounting Button */}
+                          <button
+                            type="button"
+                            onClick={() => onResetAccounting && onResetAccounting(sub)}
+                            className="p-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/25 text-amber-400/80 hover:text-amber-300 border border-amber-500/20 hover:border-amber-500/40 transition-all cursor-pointer"
+                            title="Resetear Ventas y Contabilidad (Conserva Inventario y Combos)"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                          </button>
+
                           {/* Delete Business Button */}
                           <button
                             type="button"
@@ -771,6 +783,14 @@ export default function ClientGrid({
                       title="Editar datos del comercio"
                     >
                       <Edit3 className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onResetAccounting && onResetAccounting(sub)}
+                      className="p-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/25 text-amber-400/80 hover:text-amber-300 border border-amber-500/20 hover:border-amber-500/40 transition-all cursor-pointer"
+                      title="Resetear Ventas y Contabilidad (Conserva Inventario y Combos)"
+                    >
+                      <RotateCcw className="w-4 h-4" />
                     </button>
                     <button
                       type="button"
