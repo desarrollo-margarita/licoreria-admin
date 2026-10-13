@@ -581,6 +581,9 @@ export default function AdminDashboard({ onBackToLanding }) {
                 activeCount={activeCount}
                 expiringCount={expiringCount}
                 totalRevenueCollected={totalRevenue}
+                statusFilter={statusFilter}
+                onStatusFilterChange={setStatusFilter}
+                onSelectTab={setActiveTab}
               />
 
               <ClientGrid
