@@ -2324,9 +2324,52 @@ export const resetBusinessSalesAndAccounting = async (licenseKey, businessId) =>
     throw new Error('Supabase no está configurado o conectado.');
   }
 
-  const targetBizId = businessId || business?.id;
-  if (!targetBizId) {
-    throw new Error('No se pudo determinar el ID del comercio para el reseteo.');
+  // Resolver ID numérico limpio del comercio
+  let rawBizId = businessId;
+
+  // Si vino con formato "node-default_41" o similar, extraer el número al final
+  if (typeof rawBizId === 'string' && rawBizId.includes('_')) {
+    const parts = rawBizId.split('_');
+    const lastPart = parts[parts.length - 1];
+    const parsed = parseInt(lastPart, 10);
+    if (!isNaN(parsed) && parsed > 0) {
+      rawBizId = parsed;
+    }
+  }
+
+  // Fallback al ID de business obtenido por getClientForLicense
+  if ((!rawBizId || isNaN(parseInt(rawBizId, 10))) && business?.id) {
+    rawBizId = business.id;
+  }
+
+  // Fallback si aún no es numérico: consultar directamente en Supabase por clave de licencia
+  if (!rawBizId || isNaN(parseInt(rawBizId, 10)) || typeof rawBizId === 'string') {
+    const cleanKey = (licenseKey || '').trim().toUpperCase();
+    if (cleanKey) {
+      const { data: bRow } = await supabase
+        .from('businesses')
+        .select('id')
+        .eq('license_key', cleanKey)
+        .maybeSingle();
+
+      if (bRow?.id) {
+        rawBizId = bRow.id;
+      } else {
+        const { data: sRow } = await supabase
+          .from('subscriptions')
+          .select('business_id')
+          .eq('license_key', cleanKey)
+          .maybeSingle();
+        if (sRow?.business_id) {
+          rawBizId = sRow.business_id;
+        }
+      }
+    }
+  }
+
+  const finalBizId = parseInt(rawBizId, 10);
+  if (!finalBizId || isNaN(finalBizId) || finalBizId <= 0) {
+    throw new Error(`No se pudo determinar el ID numérico del comercio para la clave "${licenseKey}".`);
   }
 
   const resetTimestamp = new Date().toISOString();
@@ -2337,7 +2380,7 @@ export const resetBusinessSalesAndAccounting = async (licenseKey, businessId) =>
     const { data: salesData } = await supabase
       .from('sales')
       .select('id')
-      .eq('business_id', targetBizId);
+      .eq('business_id', finalBizId);
     if (salesData && salesData.length > 0) {
       saleIds = salesData.map(s => s.id);
     }
@@ -2364,7 +2407,7 @@ export const resetBusinessSalesAndAccounting = async (licenseKey, businessId) =>
   const { error: salesErr } = await supabase
     .from('sales')
     .delete()
-    .eq('business_id', targetBizId);
+    .eq('business_id', finalBizId);
 
   if (salesErr) {
     throw new Error(`Error al eliminar ventas en Supabase: ${salesErr.message}`);
@@ -2372,7 +2415,7 @@ export const resetBusinessSalesAndAccounting = async (licenseKey, businessId) =>
 
   // 4. Limpiar turnos y arqueos de caja ('cash_shifts')
   try {
-    await supabase.from('cash_shifts').delete().eq('business_id', targetBizId);
+    await supabase.from('cash_shifts').delete().eq('business_id', finalBizId);
   } catch (err) {
     console.warn('Aviso al limpiar cash_shifts:', err);
   }
@@ -2382,7 +2425,7 @@ export const resetBusinessSalesAndAccounting = async (licenseKey, businessId) =>
     const { data: purchasesData } = await supabase
       .from('purchases')
       .select('id')
-      .eq('business_id', targetBizId);
+      .eq('business_id', finalBizId);
 
     if (purchasesData && purchasesData.length > 0) {
       const purchaseIds = purchasesData.map(p => p.id);
@@ -2398,14 +2441,14 @@ export const resetBusinessSalesAndAccounting = async (licenseKey, businessId) =>
       }
     }
 
-    await supabase.from('purchases').delete().eq('business_id', targetBizId);
+    await supabase.from('purchases').delete().eq('business_id', finalBizId);
   } catch (err) {
     console.warn('Aviso al limpiar compras y cuentas por pagar:', err);
   }
 
   // 6. Limpiar gastos y retiros de efectivo ('admin_withdrawals')
   try {
-    await supabase.from('admin_withdrawals').delete().eq('business_id', targetBizId);
+    await supabase.from('admin_withdrawals').delete().eq('business_id', finalBizId);
   } catch (err) {
     console.warn('Aviso al limpiar admin_withdrawals:', err);
   }
@@ -2416,7 +2459,7 @@ export const resetBusinessSalesAndAccounting = async (licenseKey, businessId) =>
     await supabase
       .from('kardex_movements')
       .delete()
-      .eq('business_id', targetBizId)
+      .eq('business_id', finalBizId)
       .in('movement_type', ['VENTA', 'VENTA_ANULADA']);
   } catch (err) {
     console.warn('Aviso al depurar kardex de ventas:', err);
@@ -2427,7 +2470,7 @@ export const resetBusinessSalesAndAccounting = async (licenseKey, businessId) =>
     await supabase
       .from('clients')
       .update({ current_debt_usd: 0 })
-      .eq('business_id', targetBizId);
+      .eq('business_id', finalBizId);
   } catch (err) {
     console.warn('Aviso al resetear saldo de clientes:', err);
   }
@@ -2439,7 +2482,7 @@ export const resetBusinessSalesAndAccounting = async (licenseKey, businessId) =>
     const { data: bizRecord } = await supabase
       .from('businesses')
       .select('modules_config, name')
-      .eq('id', targetBizId)
+      .eq('id', finalBizId)
       .maybeSingle();
 
     if (bizRecord?.name) {
@@ -2464,7 +2507,7 @@ export const resetBusinessSalesAndAccounting = async (licenseKey, businessId) =>
         modules_config: updatedModules,
         updated_at: resetTimestamp
       })
-      .eq('id', targetBizId);
+      .eq('id', finalBizId);
   } catch (err) {
     console.warn('Aviso al estampar reset_accounting_at en businesses:', err);
   }

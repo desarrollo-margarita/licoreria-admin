@@ -28,7 +28,8 @@ export default function ResetAccountingModal({ isOpen, business, onClose, onAcco
     setSuccessMsg(null);
 
     try {
-      const res = await resetBusinessSalesAndAccounting(business.licenseKey, business.id);
+      const targetId = business.businessId || business.id;
+      const res = await resetBusinessSalesAndAccounting(business.licenseKey, targetId);
       setSuccessMsg(`¡Ventas y contabilidad reseteadas con éxito para "${res.businessName}"! Catálogo de productos y combos preservado al 100%.`);
       
       if (onAccountingReset) {
