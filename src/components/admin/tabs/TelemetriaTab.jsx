@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Radio, Laptop, Monitor, RefreshCw, 
-  Search, Clock, XCircle, Server, Database
+  Search, Clock, XCircle, Package, ShoppingBag, Server, Database
 } from 'lucide-react';
 import { fetchAllTelemetryDevices } from '../../../lib/storageService';
 import Button from '../../ui/Button';
