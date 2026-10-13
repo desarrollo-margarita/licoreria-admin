@@ -286,6 +286,8 @@ export default function ClientGrid({
                   const boxCount = parseInt(sub.maxBoxes) || 1;
                   const isCopied = copiedKey === sub.licenseKey;
                   const ltv = parseFloat(sub.ltvUsd || 0);
+                  const feeNum = parseFloat(sub.monthlyFeeUsd || 0);
+                  const isMonthlyInstallment = sub.billingFrequency === 'MENSUAL' || (feeNum > 0 && feeNum < 50) || (sub.notes && sub.notes.includes('Mensual'));
 
                   return (
                     <tr 
@@ -363,7 +365,7 @@ export default function ClientGrid({
                       {/* Plan & Authorized Boxes */}
                       <td className="py-4 px-4">
                         <div className="space-y-1">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="font-bold text-white text-xs">
                               {planShortLabelMap[sub.planType] || sub.planType}
                             </span>
@@ -376,6 +378,11 @@ export default function ClientGrid({
                               <Sparkles className="w-2.5 h-2.5" />
                               <span>Plan</span>
                             </button>
+                            {isMonthlyInstallment && (
+                              <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black bg-cyan-500/15 text-cyan-300 border border-cyan-500/25 tracking-tight uppercase" title="Plan contratado bajo modalidad de cuotas mensuales">
+                                Cuota Mensual
+                              </span>
+                            )}
                           </div>
                           <button
                             type="button"
@@ -398,12 +405,12 @@ export default function ClientGrid({
                       {/* Fee USD & LTV Payments */}
                       <td className="py-4 px-4">
                         <div className="space-y-1">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5">
                             <span className="font-mono font-extrabold text-emerald-400 text-sm">
-                              ${parseFloat(sub.monthlyFeeUsd || 0).toFixed(2)}
+                              ${feeNum.toFixed(2)}
                             </span>
-                            <span className="text-[10px] text-slate-500 uppercase font-semibold">
-                              {sub.planType === 'MENSUAL' ? '/ Mes' : '/ Lic.'}
+                            <span className="text-[10px] text-slate-400 uppercase font-bold">
+                              {isMonthlyInstallment ? '/ Mes' : (sub.planType === 'DEMO' ? 'Demo' : '/ Año')}
                             </span>
                           </div>
                           <button
@@ -424,9 +431,12 @@ export default function ClientGrid({
                           <Badge variant={badgeVariant} dot={badgeVariant === 'emerald'}>
                             {badgeLabel}
                           </Badge>
-                          <div className={`text-[11px] flex items-center gap-1 font-medium ${isExpiring ? 'text-amber-400 font-bold' : isExpired || isSuspended ? 'text-red-400 font-bold' : 'text-slate-400'}`}>
-                            <Calendar className="w-3 h-3" />
+                          <div className={`text-[11px] flex items-center gap-1.5 font-medium ${isExpiring ? 'text-amber-400 font-bold' : isExpired || isSuspended ? 'text-red-400 font-bold' : 'text-slate-400'}`}>
+                            <Calendar className="w-3 h-3 flex-shrink-0" />
                             <span>{formatDate(new Date(sub.expirationDate))}</span>
+                            <span className="text-[10px] font-mono font-bold text-slate-500">
+                              ({daysLeft}d)
+                            </span>
                           </div>
                         </div>
                       </td>
@@ -591,6 +601,8 @@ export default function ClientGrid({
             const boxCount = parseInt(sub.maxBoxes) || 1;
             const isCopied = copiedKey === sub.licenseKey;
             const ltv = parseFloat(sub.ltvUsd || 0);
+            const feeNum = parseFloat(sub.monthlyFeeUsd || 0);
+            const isMonthlyInstallment = sub.billingFrequency === 'MENSUAL' || (feeNum > 0 && feeNum < 50) || (sub.notes && sub.notes.includes('Mensual'));
 
             return (
               <div 
@@ -692,8 +704,11 @@ export default function ClientGrid({
 
                     <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/5 space-y-1">
                       <span className="text-[10px] font-bold text-slate-500 uppercase">Tarifa & LTV</span>
-                      <div className="font-mono font-bold text-emerald-400">
-                        ${parseFloat(sub.monthlyFeeUsd || 0).toFixed(2)}
+                      <div className="font-mono font-bold text-emerald-400 flex items-center gap-1">
+                        <span>${feeNum.toFixed(2)}</span>
+                        <span className="text-[9px] text-slate-400 font-normal uppercase">
+                          {isMonthlyInstallment ? '/ mes' : (sub.planType === 'DEMO' ? 'demo' : '/ año')}
+                        </span>
                       </div>
                       <button
                         type="button"

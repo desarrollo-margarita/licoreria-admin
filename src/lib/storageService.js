@@ -281,19 +281,29 @@ export const createNewBusiness = async (businessData) => {
 
   const licenseKey = generateLicenseKey();
   
-  let days = 365;
-  if (planType === 'TRIENAL' || planType === 'ANUAL_MAX') days = 365;
-  if (planType === 'MENSUAL' || planType === 'EMPRENDEDOR') days = 365;
-  if (planType === 'DEMO') days = 15;
-
-  const startDate = new Date();
-  const expDate = new Date();
-  expDate.setDate(expDate.getDate() + days);
-
   const parsedFee = parseFloat(fee);
   const monthlyFeeUsd = !isNaN(parsedFee) && parsedFee >= 0 
     ? parsedFee 
     : ((planType === 'TRIENAL' || planType === 'ANUAL_MAX') ? 200 : planType === 'ANUAL' ? 99 : (planType === 'MENSUAL' || planType === 'EMPRENDEDOR') ? 70 : 0);
+
+  const isMonthlyBilling = businessData.billingFrequency === 'MENSUAL' || 
+    (businessData.days !== undefined && parseInt(businessData.days, 10) === 30) ||
+    (monthlyFeeUsd > 0 && monthlyFeeUsd < 50 && planType !== 'DEMO');
+
+  let days = 365;
+  if (businessData.days !== undefined && !isNaN(parseInt(businessData.days, 10))) {
+    days = parseInt(businessData.days, 10);
+  } else if (planType === 'DEMO') {
+    days = 15;
+  } else if (isMonthlyBilling) {
+    days = 30;
+  } else {
+    days = 365;
+  }
+
+  const startDate = new Date();
+  const expDate = new Date();
+  expDate.setDate(expDate.getDate() + days);
 
   const defaultBoxCount = (planType === 'TRIENAL' || planType === 'ANUAL_MAX') ? 4 : planType === 'ANUAL' ? 2 : 1;
   const maxBoxes = Math.max(1, parseInt(boxes, 10) || defaultBoxCount);
@@ -328,9 +338,17 @@ export const createNewBusiness = async (businessData) => {
 
   // 3. Inserción en la tabla 'subscriptions'
   const rubroNote = businessType ? `Rubro: ${businessType}` : '';
-  const initialNotes = notes?.trim()
-    ? (notes.includes('Rubro:') ? notes.trim() : `${notes.trim()} - ${rubroNote}`.trim())
-    : rubroNote;
+  const modalityNote = isMonthlyBilling 
+    ? `[Modalidad: Cuotas Mensuales - $${monthlyFeeUsd.toFixed(2)}/mes]`
+    : (planType !== 'DEMO' ? `[Modalidad: Contado Anual - $${monthlyFeeUsd.toFixed(2)}/año]` : '[Modalidad: Demo]');
+
+  let initialNotes = notes?.trim() || '';
+  if (rubroNote && !initialNotes.includes('Rubro:')) {
+    initialNotes = initialNotes ? `${initialNotes} - ${rubroNote}` : rubroNote;
+  }
+  if (!initialNotes.includes('Modalidad:')) {
+    initialNotes = initialNotes ? `${initialNotes} - ${modalityNote}` : modalityNote;
+  }
 
   const subPayload = {
     business_id: bizData.id,
@@ -1184,19 +1202,44 @@ export const updateBusinessInfo = async (licenseKey, updatedData) => {
     }
   }
 
+  const subUpdatePayload = {
+    max_boxes: maxBoxes,
+    monthly_fee_usd: fee,
+    notes: updatedNotes || null,
+    updated_at: new Date().toISOString()
+  };
+
+  if (updatedData.expirationDate) {
+    subUpdatePayload.expiration_date = new Date(updatedData.expirationDate).toISOString();
+  }
+
   const { error: subErr } = await supabase
     .from('subscriptions')
-    .update({
-      max_boxes: maxBoxes,
-      monthly_fee_usd: fee,
-      notes: updatedNotes || null,
-      updated_at: new Date().toISOString()
-    })
+    .update(subUpdatePayload)
     .eq('license_key', licenseKey);
 
   if (subErr) throw new Error(`Error al actualizar suscripción: ${subErr.message}`);
 
   return { success: true };
+};
+
+/**
+ * Ajusta la fecha exacta de vencimiento de una licencia directamente en Supabase
+ */
+export const setBusinessExpirationDate = async (licenseKey, newDate) => {
+  const { client: supabase } = await getClientForLicense(licenseKey);
+  if (!supabase) throw new Error('Supabase no está conectado o configurado.');
+  const expIso = new Date(newDate).toISOString();
+  const { error } = await supabase
+    .from('subscriptions')
+    .update({ 
+      expiration_date: expIso, 
+      status: new Date(expIso) > new Date() ? 'ACTIVA' : 'VENCIDA',
+      updated_at: new Date().toISOString() 
+    })
+    .eq('license_key', licenseKey);
+  if (error) throw new Error(`Error al actualizar fecha de vencimiento: ${error.message}`);
+  return { success: true, expirationDate: expIso };
 };
 
 /**

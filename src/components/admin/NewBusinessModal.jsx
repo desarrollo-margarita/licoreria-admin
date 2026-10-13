@@ -49,6 +49,8 @@ export default function NewBusinessModal({ isOpen, onClose, onCreated }) {
   }, [isOpen]);
 
   const [selectedPlanOption, setSelectedPlanOption] = useState('ANUAL');
+  const [billingFrequency, setBillingFrequency] = useState('ANUAL');
+  const [days, setDays] = useState(365);
 
   const handlePlanChange = (e) => {
     const val = e.target.value;
@@ -57,30 +59,44 @@ export default function NewBusinessModal({ isOpen, onClose, onCreated }) {
       setPlanType('TRIENAL');
       setFee('200.00');
       setBoxes('4');
+      setDays(365);
+      setBillingFrequency('ANUAL');
     } else if (val === 'TRIENAL_MENSUAL') {
       setPlanType('TRIENAL');
       setFee('20.83');
       setBoxes('4');
+      setDays(30);
+      setBillingFrequency('MENSUAL');
     } else if (val === 'ANUAL') {
       setPlanType('ANUAL');
       setFee('99.00');
       setBoxes('2');
+      setDays(365);
+      setBillingFrequency('ANUAL');
     } else if (val === 'ANUAL_MENSUAL') {
       setPlanType('ANUAL');
       setFee('12.50');
       setBoxes('2');
+      setDays(30);
+      setBillingFrequency('MENSUAL');
     } else if (val === 'MENSUAL') {
       setPlanType('MENSUAL');
       setFee('70.00');
       setBoxes('1');
+      setDays(365);
+      setBillingFrequency('ANUAL');
     } else if (val === 'MENSUAL_MENSUAL') {
       setPlanType('MENSUAL');
       setFee('8.33');
       setBoxes('1');
+      setDays(30);
+      setBillingFrequency('MENSUAL');
     } else if (val === 'DEMO') {
       setPlanType('DEMO');
       setFee('0.00');
       setBoxes('1');
+      setDays(15);
+      setBillingFrequency('DEMO');
     }
   };
 
@@ -104,6 +120,8 @@ export default function NewBusinessModal({ isOpen, onClose, onCreated }) {
     setEmail('');
     setPlanType('ANUAL');
     setSelectedPlanOption('ANUAL');
+    setBillingFrequency('ANUAL');
+    setDays(365);
     setBusinessType('licoreria');
     setFee('99.00');
     setBoxes('2');
@@ -128,7 +146,9 @@ export default function NewBusinessModal({ isOpen, onClose, onCreated }) {
         fee,
         boxes,
         notes,
-        nodeId
+        nodeId,
+        days,
+        billingFrequency
       });
 
       triggerConfetti();
@@ -278,6 +298,21 @@ export default function NewBusinessModal({ isOpen, onClose, onCreated }) {
                   <option value="DEMO">Prueba Gratuita Demo (15 Días · 1 Caja · $0)</option>
                 </optgroup>
               </select>
+              <div className="mt-2 flex items-center gap-1.5 text-[11px]">
+                {billingFrequency === 'MENSUAL' ? (
+                  <span className="text-cyan-300 font-semibold bg-cyan-500/10 px-2.5 py-1 rounded-lg border border-cyan-500/25 flex items-center gap-1.5">
+                    🗓️ <span><strong>Cuotas Mensuales:</strong> Vigencia inicial de <strong>30 Días</strong> (se extiende cada mes con +Cobro)</span>
+                  </span>
+                ) : billingFrequency === 'DEMO' ? (
+                  <span className="text-amber-300 font-semibold bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/25 flex items-center gap-1.5">
+                    🆓 <span><strong>Prueba Demo:</strong> Vigencia de <strong>15 Días</strong></span>
+                  </span>
+                ) : (
+                  <span className="text-emerald-300 font-semibold bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/25 flex items-center gap-1.5">
+                    ⭐ <span><strong>Contado Anual:</strong> Vigencia de <strong>365 Días</strong> (1 Año completo garantizado)</span>
+                  </span>
+                )}
+              </div>
             </div>
 
             <div>

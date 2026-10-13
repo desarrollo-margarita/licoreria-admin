@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Store, KeyRound, User, Phone, Mail, FileText, DollarSign, Monitor, 
-  Sparkles, CheckCircle2, AlertTriangle, Plus, Minus, Save, X, RefreshCw
+  Sparkles, CheckCircle2, AlertTriangle, Plus, Minus, Save, X, RefreshCw, Calendar
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import Modal from '../ui/Modal';
@@ -32,6 +32,7 @@ export default function EditBusinessModal({ isOpen, onClose, business, onUpdated
   const [businessType, setBusinessType] = useState('licoreria');
   const [maxBoxes, setMaxBoxes] = useState(1);
   const [monthlyFeeUsd, setMonthlyFeeUsd] = useState('99.00');
+  const [expirationDate, setExpirationDate] = useState('');
   const [notes, setNotes] = useState('');
   const [currentKey, setCurrentKey] = useState('');
   const [convertingKey, setConvertingKey] = useState(false);
@@ -51,6 +52,17 @@ export default function EditBusinessModal({ isOpen, onClose, business, onUpdated
       setNotes(business.notes || '');
       setCurrentKey(business.licenseKey || '');
       setErrorMsg('');
+
+      if (business.expirationDate) {
+        try {
+          const d = new Date(business.expirationDate);
+          setExpirationDate(d.toISOString().split('T')[0]);
+        } catch {
+          setExpirationDate('');
+        }
+      } else {
+        setExpirationDate('');
+      }
     }
   }, [business, isOpen]);
 
@@ -113,7 +125,8 @@ export default function EditBusinessModal({ isOpen, onClose, business, onUpdated
         businessType,
         maxBoxes,
         monthlyFeeUsd,
-        notes
+        notes,
+        expirationDate
       });
 
       triggerConfetti();
@@ -333,6 +346,63 @@ export default function EditBusinessModal({ isOpen, onClose, business, onUpdated
               />
             </div>
           </div>
+        </div>
+
+        {/* Expiration Date & Billing Cycle Control */}
+        <div className="p-5 rounded-2xl bg-slate-950/90 border border-white/10 space-y-3.5 shadow-lg">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-extrabold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-cyan-400" />
+              Fecha de Vencimiento de Licencia
+            </label>
+            {expirationDate && (
+              <span className="text-[11px] font-mono font-bold px-2.5 py-0.5 rounded-lg bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                {(() => {
+                  const diff = new Date(expirationDate).getTime() - new Date().getTime();
+                  const d = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                  return d >= 0 ? `${d} días restantes` : `${Math.abs(d)} días vencida`;
+                })()}
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <input
+              type="date"
+              value={expirationDate}
+              onChange={(e) => setExpirationDate(e.target.value)}
+              className="bg-slate-900 border border-white/15 rounded-xl px-4 py-2.5 text-xs text-white font-mono font-bold outline-none focus:border-cyan-400 shadow-inner"
+            />
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => {
+                  const d = new Date();
+                  d.setDate(d.getDate() + 30);
+                  setExpirationDate(d.toISOString().split('T')[0]);
+                }}
+                className="px-3 py-2 rounded-xl text-[11px] font-bold bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 transition-all cursor-pointer flex items-center gap-1.5"
+                title="Establecer vigencia a 30 días desde hoy (para clientes con cuota mensual)"
+              >
+                <span>🗓️ Ajustar a 30 Días (Mensual)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const d = new Date();
+                  d.setDate(d.getDate() + 365);
+                  setExpirationDate(d.toISOString().split('T')[0]);
+                }}
+                className="px-3 py-2 rounded-xl text-[11px] font-bold bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border border-purple-500/30 transition-all cursor-pointer flex items-center gap-1.5"
+                title="Establecer vigencia a 1 año desde hoy (para clientes que pagaron anual de contado)"
+              >
+                <span>⭐ Ajustar a 1 Año (Anual)</span>
+              </button>
+            </div>
+          </div>
+          <p className="text-[11px] text-slate-400 leading-relaxed">
+            💡 <strong>Regla de Cobro:</strong> Si el comercio paga cuotas mensuales (ej. $20.83 o $12.50 al mes), su vigencia debe estar a <strong>30 días</strong> para que la aplicación de Windows le solicite el pago puntual de su mensualidad.
+          </p>
         </div>
 
         {/* Notes */}
