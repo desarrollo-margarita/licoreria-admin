@@ -2522,7 +2522,7 @@ export const resetBusinessSalesAndAccounting = async (licenseKey, businessId) =>
   return {
     success: true,
     resetTimestamp,
-    businessId: targetBizId,
+    businessId: finalBizId,
     businessName
   };
 };
