@@ -12,6 +12,7 @@ export default function ControlGlobalTab({ onConfigSaved }) {
   const [bcvSource, setBcvSource] = useState('');
   const [consultingBcv, setConsultingBcv] = useState(false);
   const [minPosVersion, setMinPosVersion] = useState('1.0.0');
+  const [posInstallerUrl, setPosInstallerUrl] = useState('');
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [maintenanceMessage, setMaintenanceMessage] = useState('Sistema en mantenimiento preventivo. Volvemos en breve.');
   const [loading, setLoading] = useState(false);
@@ -25,6 +26,7 @@ export default function ControlGlobalTab({ onConfigSaved }) {
       if (cfg) {
         setBcvRate((cfg.bcvRate || 65.50).toString());
         setMinPosVersion(cfg.minPosVersion || '1.0.0');
+        setPosInstallerUrl(cfg.posInstallerUrl || '');
         setMaintenanceMode(!!cfg.maintenanceMode);
         setMaintenanceMessage(cfg.maintenanceMessage || '');
       }
@@ -67,6 +69,7 @@ export default function ControlGlobalTab({ onConfigSaved }) {
       await saveGlobalConfig({
         bcvRate: parseFloat(bcvRate) || 65.50,
         minPosVersion,
+        posInstallerUrl,
         maintenanceMode,
         maintenanceMessage
       });
@@ -203,6 +206,22 @@ export default function ControlGlobalTab({ onConfigSaved }) {
                 Las cajas con una versión inferior a <span className="font-mono text-white font-bold">{minPosVersion}</span> recibirán un aviso para actualizar el software antes de operar.
               </p>
             </div>
+          </div>
+
+          <div className="pt-2 border-t border-white/5 space-y-1.5">
+            <label className="block text-xs text-slate-400">
+              URL de Descarga del Instalador (.exe)
+            </label>
+            <input
+              type="url"
+              placeholder="https://ejemplo.com/descargas/VentroX_Setup_v1.0.17.exe"
+              value={posInstallerUrl}
+              onChange={(e) => setPosInstallerUrl(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-2.5 text-xs font-mono text-indigo-300 focus:outline-none focus:border-indigo-500"
+            />
+            <p className="text-[11px] text-slate-500">
+              Enlace directo al archivo instalador ejecutable (.exe). La caja mostrará un botón de <strong>1-Clic</strong> para descargar con barra de progreso e instalar automáticamente.
+            </p>
           </div>
         </div>
 

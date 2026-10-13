@@ -1447,6 +1447,7 @@ export const fetchGlobalConfig = async () => {
     return {
       bcvRate: parseFloat(data.bcv_rate || 65.50),
       minPosVersion: data.min_pos_version || '1.0.0',
+      posInstallerUrl: data.pos_installer_url || '',
       maintenanceMode: !!data.maintenance_mode,
       maintenanceMessage: data.maintenance_message || fallback.maintenanceMessage,
       updatedAt: data.updated_at || new Date().toISOString()
@@ -1464,6 +1465,7 @@ export const saveGlobalConfig = async (config) => {
     id: 1,
     bcv_rate: parseFloat(config.bcvRate) || 65.50,
     min_pos_version: config.minPosVersion || '1.0.0',
+    pos_installer_url: config.posInstallerUrl ? config.posInstallerUrl.trim() : '',
     maintenance_mode: !!config.maintenanceMode,
     maintenance_message: config.maintenanceMessage || 'Mantenimiento preventivo.',
     updated_at: new Date().toISOString()

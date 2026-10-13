@@ -144,26 +144,41 @@ export const syncBcvRateToAllNodes = async (rate, source = 'Sincronizador Autom�
   const nodes = getAllNodes();
   let updatedCount = 0;
 
+  const failures = [];
+
   for (const node of nodes) {
     const client = getNodeClient(node.id);
     if (!client) continue;
 
     try {
       // 1. Actualizar global_config
-      await client
+      const { error: cfgError } = await client
         .from('global_config')
         .upsert({ id: 1, bcv_rate: numericRate, updated_at: nowIso });
+      if (cfgError) {
+        console.warn(`[BCV Sync] global_config falló en nodo ${node.id}:`, cfgError);
+      }
 
       // 2. Actualizar businesses (para disparar WebSocket Realtime a los POS en Windows)
-      await client
+      const { data: updatedRows, error: bizError } = await client
         .from('businesses')
         .update({ bcv_rate: numericRate })
-        .gt('id', 0);
+        .gt('id', 0)
+        .select('id');
+      if (bizError) throw bizError;
+      if (!updatedRows || updatedRows.length === 0) {
+        throw new Error('0 negocios actualizados (¿RLS o tabla vacía?)');
+      }
 
       updatedCount++;
     } catch (err) {
       console.warn(`[BCV Sync] Error sincronizando tasa en nodo ${node.id}:`, err);
+      failures.push(`${node.id}: ${err.message || err}`);
     }
+  }
+
+  if (updatedCount === 0) {
+    throw new Error(`No se pudo guardar la tasa en ningún nodo. ${failures.join(' | ')}`);
   }
 
   // Registrar evento en bitácora de auditoría
