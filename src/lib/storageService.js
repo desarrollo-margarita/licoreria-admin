@@ -174,6 +174,7 @@ export const fetchAllBusinesses = async () => {
           distributorName: biz.distributor_name || '',
           distributorCommission: parseFloat(biz.distributor_commission || 0),
           modulesConfig: biz.modules_config ? { ...defaultModules, ...(typeof biz.modules_config === 'string' ? JSON.parse(biz.modules_config) : biz.modules_config) } : defaultModules,
+          logoUrl: biz.logo_url || (biz.modules_config && biz.modules_config.logo_url) || '',
           expirationDate: sub.expiration_date ? new Date(sub.expiration_date).toISOString() : biz.expiration_date ? new Date(biz.expiration_date).toISOString() : defaultExp.toISOString(),
           startDate: sub.start_date ? new Date(sub.start_date).toISOString() : new Date(biz.created_at || Date.now()).toISOString(),
           notes: sub.notes || biz.notes || ''
@@ -1122,31 +1123,29 @@ export const updateBusinessInfo = async (licenseKey, updatedData) => {
     .eq('license_key', licenseKey)
     .maybeSingle();
 
+  const updatePayload = {
+    name: name || undefined,
+    rif_doc: rif || undefined,
+    phone,
+    email,
+    contact_person: contact,
+    updated_at: new Date().toISOString()
+  };
+  if (updatedData.logoUrl !== undefined) {
+    updatePayload.logo_url = updatedData.logoUrl;
+  }
+
   if (subData?.business_id) {
     const { error: bizErr } = await supabase
       .from('businesses')
-      .update({
-        name: name || undefined,
-        rif_doc: rif || undefined,
-        phone,
-        email,
-        contact_person: contact,
-        updated_at: new Date().toISOString()
-      })
+      .update(updatePayload)
       .eq('id', subData.business_id);
 
     if (bizErr) throw new Error(`Error al actualizar datos del comercio: ${bizErr.message}`);
   } else {
     const { error: bizErr } = await supabase
       .from('businesses')
-      .update({
-        name: name || undefined,
-        rif_doc: rif || undefined,
-        phone,
-        email,
-        contact_person: contact,
-        updated_at: new Date().toISOString()
-      })
+      .update(updatePayload)
       .eq('license_key', licenseKey);
 
     if (bizErr) throw new Error(`Error al actualizar datos del comercio: ${bizErr.message}`);
