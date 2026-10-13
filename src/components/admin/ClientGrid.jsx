@@ -43,16 +43,20 @@ export default function ClientGrid({
   };
 
   const planLabelMap = {
-    'TRIENAL': 'Trienal Multi-Caja (3 Años)',
-    'ANUAL': 'Anual Pro ($80/año)',
-    'MENSUAL': 'Emprendedor ($50/año)',
+    'TRIENAL': 'Anual Max (4 Cajas · $200)',
+    'ANUAL_MAX': 'Anual Max (4 Cajas · $200)',
+    'ANUAL': 'Anual Pro (2 Cajas · $99)',
+    'MENSUAL': 'Emprendedor (1 Caja · $70)',
+    'EMPRENDEDOR': 'Emprendedor (1 Caja · $70)',
     'DEMO': 'Prueba Demo (15 Días)'
   };
 
   const planShortLabelMap = {
-    'TRIENAL': 'Trienal (3 Años)',
+    'TRIENAL': 'Anual Max',
+    'ANUAL_MAX': 'Anual Max',
     'ANUAL': 'Anual Pro',
     'MENSUAL': 'Emprendedor',
+    'EMPRENDEDOR': 'Emprendedor',
     'DEMO': 'Demo'
   };
 

@@ -112,8 +112,8 @@ export const fetchAllBusinesses = async () => {
 
         const planType = sub.plan_type || biz.plan_type || biz.plan || (node.id === 'node-demos' ? 'DEMO' : 'ANUAL');
         let defaultDays = 365;
-        if (planType === 'TRIENAL') defaultDays = 1095;
-        if (planType === 'MENSUAL') defaultDays = 365;
+        if (planType === 'TRIENAL' || planType === 'ANUAL_MAX') defaultDays = 365;
+        if (planType === 'MENSUAL' || planType === 'EMPRENDEDOR') defaultDays = 365;
         if (planType === 'DEMO') defaultDays = 15;
 
         const defaultExp = new Date(new Date(biz.created_at || Date.now()).getTime() + defaultDays * 24 * 60 * 60 * 1000);
@@ -164,8 +164,8 @@ export const fetchAllBusinesses = async () => {
           nodeId: resolvedNodeId,
           nodeName: resolvedNodeName,
           status: sub.status || biz.status || (biz.is_active === 0 ? 'SUSPENDIDA' : 'ACTIVA'),
-          monthlyFeeUsd: parseFloat(sub.monthly_fee_usd || biz.monthly_fee_usd || (planType === 'TRIENAL' ? 150 : planType === 'ANUAL' ? 80 : planType === 'MENSUAL' ? 50 : 0)),
-          maxBoxes: parseInt(sub.max_boxes || biz.max_boxes || (planType === 'TRIENAL' ? 3 : planType === 'ANUAL' ? 2 : 1)),
+          monthlyFeeUsd: parseFloat(sub.monthly_fee_usd || biz.monthly_fee_usd || ((planType === 'TRIENAL' || planType === 'ANUAL_MAX') ? 200 : planType === 'ANUAL' ? 99 : (planType === 'MENSUAL' || planType === 'EMPRENDEDOR') ? 70 : 0)),
+          maxBoxes: parseInt(sub.max_boxes || biz.max_boxes || ((planType === 'TRIENAL' || planType === 'ANUAL_MAX') ? 4 : planType === 'ANUAL' ? 2 : 1)),
           connectedDevices,
           ltvUsd: ltv,
           paymentsCount,
@@ -282,8 +282,8 @@ export const createNewBusiness = async (businessData) => {
   const licenseKey = generateLicenseKey();
   
   let days = 365;
-  if (planType === 'TRIENAL') days = 1095;
-  if (planType === 'MENSUAL') days = 365;
+  if (planType === 'TRIENAL' || planType === 'ANUAL_MAX') days = 365;
+  if (planType === 'MENSUAL' || planType === 'EMPRENDEDOR') days = 365;
   if (planType === 'DEMO') days = 15;
 
   const startDate = new Date();
@@ -293,9 +293,10 @@ export const createNewBusiness = async (businessData) => {
   const parsedFee = parseFloat(fee);
   const monthlyFeeUsd = !isNaN(parsedFee) && parsedFee >= 0 
     ? parsedFee 
-    : (planType === 'TRIENAL' ? 150 : planType === 'ANUAL' ? 80 : planType === 'MENSUAL' ? 50 : 0);
+    : ((planType === 'TRIENAL' || planType === 'ANUAL_MAX') ? 200 : planType === 'ANUAL' ? 99 : (planType === 'MENSUAL' || planType === 'EMPRENDEDOR') ? 70 : 0);
 
-  const maxBoxes = Math.max(1, parseInt(boxes, 10) || 1);
+  const defaultBoxCount = (planType === 'TRIENAL' || planType === 'ANUAL_MAX') ? 4 : planType === 'ANUAL' ? 2 : 1;
+  const maxBoxes = Math.max(1, parseInt(boxes, 10) || defaultBoxCount);
 
   // 2. Inserción en la tabla 'businesses' (solo columnas existentes en el esquema oficial de Supabase)
   const { data: bizData, error: bizErr } = await supabase
@@ -504,7 +505,15 @@ export const extendBusinessLicense = extendBusinessSubscription;
  * Cambia el plan único de un comercio directamente en Supabase,
  * con soporte para migración total de datos entre clústeres físicos.
  */
-export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId = null, newLicenseKey = null) => {
+export const changeBusinessPlan = async (
+  licenseKey, 
+  newPlanType, 
+  targetNodeId = null, 
+  newLicenseKey = null, 
+  customFee = null, 
+  customBoxes = null, 
+  customDays = null
+) => {
   const cleanOldKey = (licenseKey || '').trim().toUpperCase();
   const { client: sourceClient, nodeId: sourceNodeId, business } = await getClientForLicense(cleanOldKey);
   if (!sourceClient) {
@@ -520,16 +529,16 @@ export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId =
     cleanFinalKey = cleanOldKey;
   }
 
-  let fee = 80.00;
+  let fee = 99.00;
   let boxes = 2;
   let days = 365;
 
-  if (newPlanType === 'TRIENAL') {
-    fee = 150.00;
-    boxes = 3;
-    days = 1095;
-  } else if (newPlanType === 'MENSUAL') {
-    fee = 50.00;
+  if (newPlanType === 'TRIENAL' || newPlanType === 'ANUAL_MAX') {
+    fee = 200.00;
+    boxes = 4;
+    days = 365;
+  } else if (newPlanType === 'MENSUAL' || newPlanType === 'EMPRENDEDOR') {
+    fee = 70.00;
     boxes = 1;
     days = 365;
   } else if (newPlanType === 'DEMO') {
@@ -537,9 +546,19 @@ export const changeBusinessPlan = async (licenseKey, newPlanType, targetNodeId =
     boxes = 1;
     days = 15;
   } else if (newPlanType === 'ANUAL') {
-    fee = 80.00;
+    fee = 99.00;
     boxes = 2;
     days = 365;
+  }
+
+  if (customFee !== null && customFee !== undefined && !isNaN(parseFloat(customFee))) {
+    fee = parseFloat(customFee);
+  }
+  if (customBoxes !== null && customBoxes !== undefined && !isNaN(parseInt(customBoxes, 10))) {
+    boxes = parseInt(customBoxes, 10);
+  }
+  if (customDays !== null && customDays !== undefined && !isNaN(parseInt(customDays, 10))) {
+    days = parseInt(customDays, 10);
   }
 
   const expDate = new Date();

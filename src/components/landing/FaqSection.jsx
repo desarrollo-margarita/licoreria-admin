@@ -12,7 +12,7 @@ const faqs = [
   },
   {
     q: '¿Cuántas computadoras o cajas puedo conectar en mi negocio?',
-    a: 'Depende de tu plan: el Plan Emprendedor incluye 1 caja, el Plan Anual Pro incluye 2 cajas (ej. 2 Cajas de cobro o 1 Caja + 1 Computadora de Oficina para el dueño) y el Plan Trienal incluye 3 cajas. Puedes agregar cajas adicionales en cualquier momento.'
+    a: 'Depende de tu plan: el Plan Emprendedor incluye 1 caja, el Plan Anual Pro incluye 2 cajas (ej. 2 Cajas de cobro o 1 Caja + 1 Computadora de Oficina para el dueño) y el Plan Anual Max incluye 4 cajas. Puedes pagar de contado anual para máximo ahorro o en 12 cuotas mensuales, y agregar cajas adicionales cuando lo desees.'
   },
   {
     q: '¿Qué impresoras térmicas de tickets soporta VentroX?',

@@ -16,21 +16,20 @@ export default function RecordPaymentModal({ isOpen, business, onClose, onPaymen
   useEffect(() => {
     if (business) {
       // Sugerir el monto según el plan o tarifa configurada
-      const suggested = business.monthlyFeeUsd || 80;
+      const fee = parseFloat(business.monthlyFeeUsd);
+      const isMonthlyInstallment = fee > 0 && fee < 50;
+      const suggested = fee || (business.planType === 'TRIENAL' ? 200 : business.planType === 'MENSUAL' ? 70 : 99);
+      
       setAmountUsd(suggested.toString());
       setAmountVes('');
       setReferenceCode('');
       setNotes('');
       setError(null);
       
-      if (business.planType === 'MENSUAL') {
+      if (isMonthlyInstallment) {
         setExtendDays(30);
-      } else if (business.planType === 'ANUAL') {
-        setExtendDays(365);
-      } else if (business.planType === 'TRIENAL') {
-        setExtendDays(1095);
       } else {
-        setExtendDays(30);
+        setExtendDays(365);
       }
     }
   }, [business, isOpen]);
@@ -123,6 +122,61 @@ export default function RecordPaymentModal({ isOpen, business, onClose, onPaymen
                 required
                 className="w-full bg-slate-950/90 border border-white/15 rounded-2xl px-4 py-3 text-sm font-bold text-emerald-400 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 transition-all font-mono"
               />
+              {/* Atajos Rápidos de Cobro según Plan */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-1.5">
+                {(business.planType === 'MENSUAL' || business.planType === 'EMPRENDEDOR') ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => { setAmountUsd('8.33'); setExtendDays('30'); }}
+                      className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition-all cursor-pointer"
+                    >
+                      ⚡ Cuota Mes: $8.33 (+30d)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setAmountUsd('70.00'); setExtendDays('365'); }}
+                      className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 transition-all cursor-pointer"
+                    >
+                      👑 Año Contado: $70.00 (+365d)
+                    </button>
+                  </>
+                ) : (business.planType === 'TRIENAL' || business.planType === 'ANUAL_MAX') ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => { setAmountUsd('20.83'); setExtendDays('30'); }}
+                      className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition-all cursor-pointer"
+                    >
+                      ⚡ Cuota Mes: $20.83 (+30d)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setAmountUsd('200.00'); setExtendDays('365'); }}
+                      className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 transition-all cursor-pointer"
+                    >
+                      👑 Año Contado: $200.00 (+365d)
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => { setAmountUsd('12.50'); setExtendDays('30'); }}
+                      className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition-all cursor-pointer"
+                    >
+                      ⚡ Cuota Mes: $12.50 (+30d)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setAmountUsd('99.00'); setExtendDays('365'); }}
+                      className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 transition-all cursor-pointer"
+                    >
+                      👑 Año Contado: $99.00 (+365d)
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
 
             <div className="space-y-1.5">
@@ -206,8 +260,7 @@ export default function RecordPaymentModal({ isOpen, business, onClose, onPaymen
               <option value="60">+60 Días (2 Meses)</option>
               <option value="90">+90 Días (1 Trimestre)</option>
               <option value="180">+180 Días (1 Semestre)</option>
-              <option value="365">+365 Días (1 Año Completo)</option>
-              <option value="1095">+1095 Días (3 Años - Plan Trienal)</option>
+              <option value="365">+365 Días (1 Año Completo - Licencia Anual)</option>
             </select>
             <p className="text-[11px] text-cyan-400/80 font-medium">
               Al guardar, se sumarán estos días a la fecha de vencimiento actual de la licencia.

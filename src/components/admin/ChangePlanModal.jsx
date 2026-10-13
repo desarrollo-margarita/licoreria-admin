@@ -15,6 +15,7 @@ export default function ChangePlanModal({
   onPlanChanged
 }) {
   const currentPlan = business?.planType || 'ANUAL';
+  const [billingCycle, setBillingCycle] = useState('ANUAL');
   const [selectedPlan, setSelectedPlan] = useState(currentPlan);
   const [targetNodeId, setTargetNodeId] = useState(business?.nodeId || 'node-default');
   const [nodesList, setNodesList] = useState([]);
@@ -54,35 +55,44 @@ export default function ChangePlanModal({
     {
       id: 'MENSUAL',
       title: 'Plan Emprendedor',
-      period: 'Anual (1 Año)',
-      price: '$50.00 / año',
-      fee: 50.00,
+      period: billingCycle === 'ANUAL' ? 'Anual (1 Año)' : 'Mensual (Cuota)',
+      price: billingCycle === 'ANUAL' ? '$70.00 / año' : '$8.33 / mes',
+      annualFee: 70.00,
+      monthlyFee: 8.33,
+      annualTotalNote: billingCycle === 'MENSUAL' ? '$100 total al año' : 'Ahorra $30 de contado',
       boxes: '1 Caja (PC)',
-      days: 365,
-      desc: 'Licencia anual de 1 caja para pequeños comercios y bodegas.',
+      boxCount: 1,
+      days: billingCycle === 'ANUAL' ? 365 : 30,
+      desc: 'Licencia para pequeños comercios y bodegas. 1 sola terminal de caja autorizada.',
       badge: 'Económico'
     },
     {
       id: 'ANUAL',
       title: 'Plan Anual Pro',
-      period: 'Anual (1 Año)',
-      price: '$80.00 / año',
-      fee: 80.00,
+      period: billingCycle === 'ANUAL' ? 'Anual (1 Año)' : 'Mensual (Cuota)',
+      price: billingCycle === 'ANUAL' ? '$99.00 / año' : '$12.50 / mes',
+      annualFee: 99.00,
+      monthlyFee: 12.50,
+      annualTotalNote: billingCycle === 'MENSUAL' ? '$150 total al año' : 'Ahorra $51 de contado',
       boxes: '2 Cajas (PCs)',
-      days: 365,
-      desc: 'Licencia anual completa con 2 cajas simultáneas.',
+      boxCount: 2,
+      days: billingCycle === 'ANUAL' ? 365 : 30,
+      desc: 'Licencia completa con 2 cajas simultáneas (caja de cobro principal + oficina).',
       badge: 'Recomendado'
     },
     {
       id: 'TRIENAL',
-      title: 'Plan Trienal Multi-Caja',
-      period: 'Trienal (3 Años)',
-      price: '$150.00 / 3 años',
-      fee: 150.00,
-      boxes: '3 Cajas (PCs)',
-      days: 1095,
-      desc: '3 años de tranquilidad con soporte multi-caja ampliado.',
-      badge: 'Máximo Ahorro'
+      title: 'Plan Anual Max',
+      period: billingCycle === 'ANUAL' ? 'Anual (1 Año)' : 'Mensual (Cuota)',
+      price: billingCycle === 'ANUAL' ? '$200.00 / año' : '$20.83 / mes',
+      annualFee: 200.00,
+      monthlyFee: 20.83,
+      annualTotalNote: billingCycle === 'MENSUAL' ? '$250 total al año' : 'Ahorra $50 de contado',
+      boxes: '4 Cajas (PCs)',
+      boxCount: 4,
+      days: billingCycle === 'ANUAL' ? 365 : 30,
+      desc: 'Solución empresarial multi-caja con hasta 4 terminales simultáneas independientes.',
+      badge: 'Multi-Caja Max'
     }
   ];
 
@@ -109,7 +119,19 @@ export default function ChangePlanModal({
         ? (generatedKeyPreview || generateLicenseKey()) 
         : null;
       
-      const res = await changeBusinessPlan(business.licenseKey, selectedPlan, targetNodeId, finalNewKey);
+      const effectiveFee = billingCycle === 'MENSUAL' ? newPlanObj.monthlyFee : newPlanObj.annualFee;
+      const effectiveBoxes = newPlanObj.boxCount;
+      const effectiveDays = newPlanObj.days;
+
+      const res = await changeBusinessPlan(
+        business.licenseKey, 
+        selectedPlan, 
+        targetNodeId, 
+        finalNewKey, 
+        effectiveFee, 
+        effectiveBoxes, 
+        effectiveDays
+      );
       
       try {
         confetti({
@@ -121,7 +143,7 @@ export default function ChangePlanModal({
 
       setLoading(false);
       const keyNote = res.licenseKey && res.licenseKey !== business.licenseKey ? ` (Nueva Clave Oficial: ${res.licenseKey})` : '';
-      onPlanChanged(`¡Plan de "${business.businessName}" actualizado a ${newPlanObj.title}!${keyNote}`);
+      onPlanChanged(`¡Plan de "${business.businessName}" actualizado a ${newPlanObj.title} ($${effectiveFee})!${keyNote}`);
       onClose();
     } catch (err) {
       setLoading(false);
@@ -168,9 +190,35 @@ export default function ChangePlanModal({
 
         {/* 3 Official Subscription Plans Selection */}
         <div className="space-y-3">
-          <label className="block text-xs font-bold text-slate-200 uppercase tracking-wide">
-            Selecciona la Nueva Suscripción (1 Activa por Negocio):
-          </label>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <label className="block text-xs font-bold text-slate-200 uppercase tracking-wide">
+              Selecciona la Nueva Suscripción:
+            </label>
+            <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-white/10 text-[11px] font-bold">
+              <button
+                type="button"
+                onClick={() => setBillingCycle('ANUAL')}
+                className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                  billingCycle === 'ANUAL' 
+                    ? 'bg-cyan-500 text-slate-950 shadow-md font-black' 
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Anual de Contado
+              </button>
+              <button
+                type="button"
+                onClick={() => setBillingCycle('MENSUAL')}
+                className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                  billingCycle === 'MENSUAL' 
+                    ? 'bg-purple-500 text-white shadow-md font-black' 
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Cuota Mensual
+              </button>
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
             {plans.map((p) => {
@@ -208,6 +256,9 @@ export default function ChangePlanModal({
                     <h4 className="text-xs font-extrabold text-white">{p.title}</h4>
                     <div className="text-base font-black text-emerald-400 font-mono mt-1">
                       {p.price}
+                    </div>
+                    <div className="text-[10px] text-amber-300/90 font-semibold">
+                      {p.annualTotalNote}
                     </div>
                     <div className="text-[11px] text-cyan-300 font-semibold mt-1">
                       {p.boxes}

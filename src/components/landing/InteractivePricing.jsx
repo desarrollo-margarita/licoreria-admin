@@ -3,23 +3,25 @@ import { Check, Zap, Plus, Minus, Sparkles, Crown, Rocket } from 'lucide-react';
 
 export default function InteractivePricing() {
   const [extraBoxes, setExtraBoxes] = useState(0);
+  const [billingCycle, setBillingCycle] = useState('annual'); // 'annual' | 'monthly'
 
   const plans = [
     {
       key: 'MENSUAL',
       name: 'Emprendedor',
-      basePrice: 50,
-      periodLabel: '/ año',
-      billingNote: 'Equivale a solo $4.17/mes · 1 Caja',
+      basePrice: 70,
+      monthlyPrice: '8.33',
+      periodLabel: billingCycle === 'annual' ? '/ año' : '/ mes',
+      billingNote: billingCycle === 'annual' ? 'Ahorra $30 al año · 1 Caja Incluida' : '$100 total anual en 12 cuotas · 1 Caja',
       includedBoxes: 1,
       extraBoxPrice: 15,
       accent: 'slate',
       icon: Zap,
-      desc: 'Ideal para tiendas, minimarkets, bodegas o comercios pequeños que inician con 1 caja.',
+      desc: 'Ideal para tiendas, bodegas o minimarkets pequeños que operan con 1 sola caja.',
       features: [
-        '1 Caja / Punto de Venta Principal (1 Año)',
+        '1 Caja / Punto de Venta Principal',
         'Tasa BCV Oficial en Tiempo Real',
-        'Cobro Multimoneda (USD / Bs. / Zelle)',
+        'Cobro Multimoneda (USD / Bs. / Zelle / Pago Móvil)',
         'Impresión Térmica ESC/POS USB y Bluetooth',
         '100% Funcional Offline (Base de Datos Local)',
         'Soporte Técnico por WhatsApp',
@@ -30,9 +32,10 @@ export default function InteractivePricing() {
     {
       key: 'ANUAL',
       name: 'Anual Pro',
-      basePrice: 80,
-      periodLabel: '/ año',
-      billingNote: 'Equivale a $6.67/mes · Ahorra 44%',
+      basePrice: 99,
+      monthlyPrice: '12.50',
+      periodLabel: billingCycle === 'annual' ? '/ año' : '/ mes',
+      billingNote: billingCycle === 'annual' ? 'Ahorra $51 de contado · 2 Cajas Incluidas' : '$150 total anual en 12 cuotas · 2 Cajas',
       includedBoxes: 2,
       extraBoxPrice: 20,
       accent: 'orange',
@@ -52,33 +55,38 @@ export default function InteractivePricing() {
     },
     {
       key: 'TRIENAL',
-      name: 'Trienal Multi-Caja',
-      basePrice: 150,
-      periodLabel: '/ 3 años',
-      billingNote: 'Solo $4.16/mes · 3 Cajas incluidas',
-      includedBoxes: 3,
-      extraBoxPrice: 35,
+      name: 'Anual Max',
+      basePrice: 200,
+      monthlyPrice: '20.83',
+      periodLabel: billingCycle === 'annual' ? '/ año' : '/ mes',
+      billingNote: billingCycle === 'annual' ? 'Ahorra $50 de contado · 4 Cajas Incluidas' : '$250 total anual en 12 cuotas · 4 Cajas',
+      includedBoxes: 4,
+      extraBoxPrice: 25,
       accent: 'cyan',
       icon: Rocket,
-      desc: 'Máximo ahorro para negocios de alto volumen: 36 meses de cobertura con 3 cajas.',
+      desc: 'Máxima potencia para negocios de alto volumen: 4 terminales independientes autorizadas.',
       features: [
-        '3 Cajas / PCs Autorizadas',
-        'Cobertura Total por 36 Meses (3 Años)',
-        'Capacitación Cajeros y Dueño Incluida',
+        '4 Cajas / PCs Autorizadas Incluidas',
+        'Todo lo del Plan Anual Pro',
+        'Capacitación Completa de Personal',
         'Soporte VIP 24/7 Directo',
-        'Actualizaciones Gratuitas de Por Vida',
-        'Migración Datos desde Excel Incluida',
+        'Actualizaciones Continuas Incluidas',
+        'Migración de Catálogo desde Excel',
       ],
-      ctaLabel: 'ADQUIRIR TRIENAL',
+      ctaLabel: 'ADQUIRIR PLAN MAX',
       ctaClass: 'bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 text-slate-950 font-black shadow-xl shadow-cyan-500/30',
     },
   ];
 
   const getWaLink = (plan, extra = 0) => {
-    const price = plan.basePrice + (extra * plan.extraBoxPrice);
+    const isMonthly = billingCycle === 'monthly';
+    const price = isMonthly 
+      ? plan.monthlyPrice 
+      : (plan.basePrice + (extra * plan.extraBoxPrice));
     const boxes = plan.includedBoxes + extra;
+    const cycleText = isMonthly ? 'pago mensual' : 'pago anual de contado';
     const msg = encodeURIComponent(
-      `Hola VentroX POS, deseo contratar el Plan ${plan.name} ($${price} por ${boxes} Cajas). ¿Cuáles son los métodos de pago?`
+      `Hola VentroX POS, deseo contratar el Plan ${plan.name} en modalidad ${cycleText} ($${price} por ${boxes} Cajas). ¿Cuáles son los métodos de pago disponibles?`
     );
     return `https://wa.me/584248486105?text=${msg}`;
   };
@@ -125,12 +133,47 @@ export default function InteractivePricing() {
           </p>
         </div>
 
+        {/* Billing Cycle Switch */}
+        <div className="flex items-center justify-center gap-3 mb-8">
+          <div className="bg-[#12082a] p-1.5 rounded-full border border-white/10 flex items-center shadow-xl">
+            <button
+              type="button"
+              onClick={() => setBillingCycle('annual')}
+              className={`px-5 py-2 rounded-full text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
+                billingCycle === 'annual'
+                  ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-slate-950 shadow-lg shadow-orange-500/20'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <span>Pago Anual Contado</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-950/40 text-white font-black border border-white/10">
+                Ahorra hasta 34%
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setBillingCycle('monthly')}
+              className={`px-5 py-2 rounded-full text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
+                billingCycle === 'monthly'
+                  ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/20'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <span>Pago Mensual</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-950/40 text-slate-300 font-black border border-white/10">
+                12 Cuotas
+              </span>
+            </button>
+          </div>
+        </div>
+
         {/* Pricing Cards Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-8 items-stretch mb-7 w-full">
           {plans.map((plan) => {
             const style = accentStyles[plan.accent];
             const Icon = plan.icon;
             const isPop = plan.popular;
+            const displayPrice = billingCycle === 'annual' ? plan.basePrice : plan.monthlyPrice;
 
             return (
               <div
@@ -144,7 +187,7 @@ export default function InteractivePricing() {
                 {isPop && (
                   <div className="absolute top-0 right-0 left-0 bg-gradient-to-r from-orange-500 via-pink-500 to-purple-600 py-1.5 px-4 text-center">
                     <span className="text-[9px] font-black uppercase tracking-widest text-white flex items-center justify-center gap-1 shadow-sm">
-                      <Sparkles className="w-3 h-3" /> RECOMENDADO · MÁS POPULAR (AHORRA 44%)
+                      <Sparkles className="w-3 h-3" /> RECOMENDADO · MÁS POPULAR (AHORRA 34%)
                     </span>
                   </div>
                 )}
@@ -165,7 +208,7 @@ export default function InteractivePricing() {
                     <div className="flex items-baseline gap-1 my-2">
                       <span className="text-xl text-slate-400 font-bold">$</span>
                       <span className={`text-4xl sm:text-5xl font-black tracking-tight ${style.priceColor}`}>
-                        {plan.basePrice}
+                        {displayPrice}
                       </span>
                       <span className="text-slate-400 text-xs font-semibold">{plan.periodLabel}</span>
                     </div>
@@ -199,7 +242,7 @@ export default function InteractivePricing() {
                   rel="noopener noreferrer"
                   className={`w-full py-3 rounded-full text-xs sm:text-sm font-black tracking-wide text-center transition-all duration-200 block relative z-10 ${plan.ctaClass}`}
                 >
-                  {plan.ctaLabel} (${plan.basePrice})
+                  {plan.ctaLabel} (${displayPrice}{billingCycle === 'annual' ? '/año' : '/mes'})
                 </a>
               </div>
             );

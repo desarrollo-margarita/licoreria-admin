@@ -48,19 +48,37 @@ export default function NewBusinessModal({ isOpen, onClose, onCreated }) {
     }
   }, [isOpen]);
 
+  const [selectedPlanOption, setSelectedPlanOption] = useState('ANUAL');
+
   const handlePlanChange = (e) => {
     const val = e.target.value;
-    setPlanType(val);
+    setSelectedPlanOption(val);
     if (val === 'TRIENAL') {
-      setFee('150.00');
-      setBoxes('3');
+      setPlanType('TRIENAL');
+      setFee('200.00');
+      setBoxes('4');
+    } else if (val === 'TRIENAL_MENSUAL') {
+      setPlanType('TRIENAL');
+      setFee('20.83');
+      setBoxes('4');
     } else if (val === 'ANUAL') {
-      setFee('80.00');
+      setPlanType('ANUAL');
+      setFee('99.00');
+      setBoxes('2');
+    } else if (val === 'ANUAL_MENSUAL') {
+      setPlanType('ANUAL');
+      setFee('12.50');
       setBoxes('2');
     } else if (val === 'MENSUAL') {
-      setFee('50.00');
+      setPlanType('MENSUAL');
+      setFee('70.00');
+      setBoxes('1');
+    } else if (val === 'MENSUAL_MENSUAL') {
+      setPlanType('MENSUAL');
+      setFee('8.33');
       setBoxes('1');
     } else if (val === 'DEMO') {
+      setPlanType('DEMO');
       setFee('0.00');
       setBoxes('1');
     }
@@ -85,8 +103,9 @@ export default function NewBusinessModal({ isOpen, onClose, onCreated }) {
     setContact('');
     setEmail('');
     setPlanType('ANUAL');
+    setSelectedPlanOption('ANUAL');
     setBusinessType('licoreria');
-    setFee('80.00');
+    setFee('99.00');
     setBoxes('2');
     setNotes('');
     setErrorMsg('');
@@ -241,14 +260,23 @@ export default function NewBusinessModal({ isOpen, onClose, onCreated }) {
                 Tipo de Plan Comercial
               </label>
               <select
-                value={planType}
+                value={selectedPlanOption}
                 onChange={handlePlanChange}
                 className="w-full bg-[#0e0722] border border-white/15 rounded-xl px-4 py-3 text-xs font-bold text-white outline-none focus:border-cyan-400 cursor-pointer transition-colors shadow-sm"
               >
-                <option value="ANUAL">Plan Anual Pro ($80.00 / año · 2 Cajas Incluidas) - RECOMENDADO</option>
-                <option value="TRIENAL">Plan Trienal Multi-Caja ($150.00 / 3 Años · 3 Cajas)</option>
-                <option value="MENSUAL">Plan Emprendedor ($50.00 / año · 1 Caja)</option>
-                <option value="DEMO">Prueba Gratuita Demo (15 Días · 1 Caja)</option>
+                <optgroup label="⭐ Planes Anuales de Contado (Máximo Ahorro)">
+                  <option value="ANUAL">Plan Anual Pro · $99.00 / año (2 Cajas) - RECOMENDADO</option>
+                  <option value="TRIENAL">Plan Anual Max · $200.00 / año (4 Cajas)</option>
+                  <option value="MENSUAL">Plan Emprendedor · $70.00 / año (1 Caja)</option>
+                </optgroup>
+                <optgroup label="🗓️ Planes en Cuotas Mensuales">
+                  <option value="ANUAL_MENSUAL">Plan Anual Pro · $12.50 / mes ($150 total · 2 Cajas)</option>
+                  <option value="TRIENAL_MENSUAL">Plan Anual Max · $20.83 / mes ($250 total · 4 Cajas)</option>
+                  <option value="MENSUAL_MENSUAL">Plan Emprendedor · $8.33 / mes ($100 total · 1 Caja)</option>
+                </optgroup>
+                <optgroup label="🆓 Período de Evaluación">
+                  <option value="DEMO">Prueba Gratuita Demo (15 Días · 1 Caja · $0)</option>
+                </optgroup>
               </select>
             </div>
 
