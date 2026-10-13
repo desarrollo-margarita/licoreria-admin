@@ -14,7 +14,8 @@ export default function ChangePlanModal({
   business,
   onPlanChanged
 }) {
-  const currentPlan = business?.planType || 'ANUAL';
+  const rawPlan = business?.planType || 'ANUAL';
+  const currentPlan = (rawPlan === 'TRIENAL' || rawPlan === 'ANUAL_MAX') ? 'ANUAL_MAX' : rawPlan;
   const [billingCycle, setBillingCycle] = useState('ANUAL');
   const [selectedPlan, setSelectedPlan] = useState(currentPlan);
   const [targetNodeId, setTargetNodeId] = useState(business?.nodeId || 'node-default');
@@ -81,7 +82,7 @@ export default function ChangePlanModal({
       badge: 'Recomendado'
     },
     {
-      id: 'TRIENAL',
+      id: 'ANUAL_MAX',
       title: 'Plan Anual Max',
       period: billingCycle === 'ANUAL' ? 'Anual (1 Año)' : 'Mensual (Cuota)',
       price: billingCycle === 'ANUAL' ? '$200.00 / año' : '$20.83 / mes',

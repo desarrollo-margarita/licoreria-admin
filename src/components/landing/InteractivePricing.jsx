@@ -54,7 +54,7 @@ export default function InteractivePricing() {
       ctaClass: 'bg-gradient-to-r from-orange-500 via-pink-500 to-purple-600 text-white font-black shadow-2xl shadow-pink-500/40 hover:opacity-90',
     },
     {
-      key: 'TRIENAL',
+      key: 'ANUAL_MAX',
       name: 'Anual Max',
       basePrice: 200,
       monthlyPrice: '20.83',

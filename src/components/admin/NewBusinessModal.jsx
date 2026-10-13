@@ -55,14 +55,14 @@ export default function NewBusinessModal({ isOpen, onClose, onCreated }) {
   const handlePlanChange = (e) => {
     const val = e.target.value;
     setSelectedPlanOption(val);
-    if (val === 'TRIENAL') {
-      setPlanType('TRIENAL');
+    if (val === 'ANUAL_MAX' || val === 'TRIENAL') {
+      setPlanType('ANUAL_MAX');
       setFee('200.00');
       setBoxes('4');
       setDays(365);
       setBillingFrequency('ANUAL');
-    } else if (val === 'TRIENAL_MENSUAL') {
-      setPlanType('TRIENAL');
+    } else if (val === 'ANUAL_MAX_MENSUAL' || val === 'TRIENAL_MENSUAL') {
+      setPlanType('ANUAL_MAX');
       setFee('20.83');
       setBoxes('4');
       setDays(30);
@@ -286,12 +286,12 @@ export default function NewBusinessModal({ isOpen, onClose, onCreated }) {
               >
                 <optgroup label="⭐ Planes Anuales de Contado (Máximo Ahorro)">
                   <option value="ANUAL">Plan Anual Pro · $99.00 / año (2 Cajas) - RECOMENDADO</option>
-                  <option value="TRIENAL">Plan Anual Max · $200.00 / año (4 Cajas)</option>
+                  <option value="ANUAL_MAX">Plan Anual Max · $200.00 / año (4 Cajas)</option>
                   <option value="MENSUAL">Plan Emprendedor · $70.00 / año (1 Caja)</option>
                 </optgroup>
                 <optgroup label="🗓️ Planes en Cuotas Mensuales">
                   <option value="ANUAL_MENSUAL">Plan Anual Pro · $12.50 / mes ($150 total · 2 Cajas)</option>
-                  <option value="TRIENAL_MENSUAL">Plan Anual Max · $20.83 / mes ($250 total · 4 Cajas)</option>
+                  <option value="ANUAL_MAX_MENSUAL">Plan Anual Max · $20.83 / mes ($250 total · 4 Cajas)</option>
                   <option value="MENSUAL_MENSUAL">Plan Emprendedor · $8.33 / mes ($100 total · 1 Caja)</option>
                 </optgroup>
                 <optgroup label="🆓 Período de Evaluación">

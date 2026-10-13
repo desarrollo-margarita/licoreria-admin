@@ -18,7 +18,7 @@ export default function RecordPaymentModal({ isOpen, business, onClose, onPaymen
       // Sugerir el monto según el plan o tarifa configurada
       const fee = parseFloat(business.monthlyFeeUsd);
       const isMonthlyInstallment = fee > 0 && fee < 50;
-      const suggested = fee || (business.planType === 'TRIENAL' ? 200 : business.planType === 'MENSUAL' ? 70 : 99);
+      const suggested = fee || ((business.planType === 'TRIENAL' || business.planType === 'ANUAL_MAX') ? 200 : (business.planType === 'MENSUAL' || business.planType === 'EMPRENDEDOR') ? 70 : 99);
       
       setAmountUsd(suggested.toString());
       setAmountVes('');

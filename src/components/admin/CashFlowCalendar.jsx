@@ -6,6 +6,15 @@ import {
 } from 'lucide-react';
 import Button from '../ui/Button';
 
+const formatPlanName = (p) => {
+  const norm = (p || '').toUpperCase();
+  if (norm === 'TRIENAL' || norm === 'ANUAL_MAX') return 'Anual Max';
+  if (norm === 'ANUAL' || norm === 'ANUAL_PRO') return 'Anual Pro';
+  if (norm === 'MENSUAL' || norm === 'EMPRENDEDOR') return 'Emprendedor';
+  if (norm === 'DEMO') return 'Demo';
+  return p;
+};
+
 export default function CashFlowCalendar({ subscriptions = [], onRecordPayment, onWhatsApp }) {
   const [selectedMonthOffset, setSelectedMonthOffset] = useState(0);
   const [activeKpiFilter, setActiveKpiFilter] = useState(null); // null | '7' | '15' | '30'
@@ -309,8 +318,8 @@ export default function CashFlowCalendar({ subscriptions = [], onRecordPayment, 
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <h4 className="font-bold text-white text-sm truncate">{sub.businessName}</h4>
-                          <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">
-                            {sub.planType}
+                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                            {formatPlanName(sub.planType)}
                           </span>
                         </div>
                         <p className="text-xs text-slate-400 font-mono mt-0.5">

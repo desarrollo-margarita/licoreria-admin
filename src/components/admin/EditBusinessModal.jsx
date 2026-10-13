@@ -168,7 +168,7 @@ export default function EditBusinessModal({ isOpen, onClose, business, onUpdated
               <span>{convertingKey ? 'MIGRANDO...' : (isDemoKey ? 'GENERAR CLAVE PRO OFICIAL' : 'REGENERAR CLAVE PRO')}</span>
             </button>
             <span className="text-[10px] font-black uppercase px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
-              Plan {business.planType || 'OFICIAL'}
+              Plan {(business.planType === 'TRIENAL' || business.planType === 'ANUAL_MAX') ? 'Anual Max' : business.planType === 'ANUAL' ? 'Anual Pro' : (business.planType === 'MENSUAL' || business.planType === 'EMPRENDEDOR') ? 'Emprendedor' : (business.planType || 'OFICIAL')}
             </span>
           </div>
         </div>
