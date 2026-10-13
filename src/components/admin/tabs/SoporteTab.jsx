@@ -46,7 +46,8 @@ export default function SoporteTab({ businesses = [] }) {
       await updateSupportTicketStatus(ticketData.id, {
         status: ticketData.status,
         resolutionNotes: ticketData.resolutionNotes,
-        assignedTo: ticketData.assignedTo
+        assignedTo: ticketData.assignedTo,
+        nodeId: ticketData.nodeId
       });
     } else {
       await createSupportTicket(ticketData);
@@ -54,9 +55,9 @@ export default function SoporteTab({ businesses = [] }) {
     loadTickets();
   };
 
-  const handleDeleteTicket = async (id) => {
+  const handleDeleteTicket = async (id, nodeId) => {
     if (window.confirm('¿Seguro que deseas eliminar este ticket?')) {
-      await deleteSupportTicket(id);
+      await deleteSupportTicket(id, nodeId);
       loadTickets();
     }
   };

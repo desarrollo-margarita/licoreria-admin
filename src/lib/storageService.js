@@ -1476,9 +1476,18 @@ export const saveGlobalConfig = async (config) => {
     console.warn(e);
   }
 
-  const supabase = getSupabaseClient();
-  if (supabase) {
-    await supabase.from('global_config').upsert(payload);
+  const nodes = getAllNodes();
+  for (const node of nodes) {
+    const client = getNodeClient(node.id);
+    if (client) {
+      try {
+        await client.from('global_config').upsert(payload);
+        // Propagar bcv_rate a businesses para despertar WebSocket Realtime en Windows POS
+        await client.from('businesses').update({ bcv_rate: payload.bcv_rate }).gt('id', 0);
+      } catch (err) {
+        console.warn(`[saveGlobalConfig] Error sincronizando en nodo ${node.id}:`, err);
+      }
+    }
   }
 
   // Registrar auditoría
@@ -1573,46 +1582,63 @@ export const logAuditEvent = async ({
  * 3. Mesa de Ayuda y Tickets de Soporte
  */
 export const fetchSupportTickets = async () => {
-  const supabase = getSupabaseClient();
-  const localTickets = (() => {
+  const nodes = getAllNodes();
+  const allTickets = [];
+  const seenIds = new Set();
+
+  for (const node of nodes) {
+    const client = getNodeClient(node.id);
+    if (!client) continue;
+
     try {
-      return JSON.parse(localStorage.getItem('vx_support_tickets') || '[]');
-    } catch {
-      return [];
+      const { data, error } = await client
+        .from('support_tickets')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && Array.isArray(data)) {
+        for (const t of data) {
+          const uniqueKey = `${node.id}_${t.id}`;
+          if (seenIds.has(uniqueKey)) continue;
+          seenIds.add(uniqueKey);
+
+          allTickets.push({
+            id: t.id,
+            nodeId: node.id,
+            nodeName: node.name || node.id,
+            businessId: t.business_id,
+            licenseKey: t.license_key,
+            businessName: t.business_name,
+            contactPhone: t.contact_phone || '',
+            title: t.title,
+            description: t.description || '',
+            priority: t.priority || 'MEDIA',
+            status: t.status || 'ABIERTO',
+            category: t.category || 'SISTEMA',
+            deviceInfo: t.device_info || '',
+            errorTrace: t.error_trace || '',
+            reportedByUser: t.reported_by_user || '',
+            assignedTo: t.assigned_to || 'Soporte',
+            resolutionNotes: t.resolution_notes || '',
+            createdAt: t.created_at,
+            resolvedAt: t.resolved_at
+          });
+        }
+      }
+    } catch (err) {
+      console.warn(`Error consultando tickets en nodo ${node.id}:`, err);
     }
-  })();
+  }
 
-  if (!supabase) return localTickets;
+  if (allTickets.length > 0) {
+    return allTickets.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }
 
+  // Respaldo en localStorage si no hay conexión o no hay tickets en nube
   try {
-    const { data, error } = await supabase
-      .from('support_tickets')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error || !data) return localTickets;
-
-    return data.map(t => ({
-      id: t.id,
-      businessId: t.business_id,
-      licenseKey: t.license_key,
-      businessName: t.business_name,
-      contactPhone: t.contact_phone || '',
-      title: t.title,
-      description: t.description || '',
-      priority: t.priority || 'MEDIA',
-      status: t.status || 'ABIERTO',
-      category: t.category || 'SISTEMA',
-      deviceInfo: t.device_info || '',
-      errorTrace: t.error_trace || '',
-      reportedByUser: t.reported_by_user || '',
-      assignedTo: t.assigned_to || 'Soporte',
-      resolutionNotes: t.resolution_notes || '',
-      createdAt: t.created_at,
-      resolvedAt: t.resolved_at
-    }));
+    return JSON.parse(localStorage.getItem('vx_support_tickets') || '[]');
   } catch {
-    return localTickets;
+    return [];
   }
 };
 
@@ -1639,7 +1665,7 @@ export const createSupportTicket = async (ticketData) => {
     console.warn(e);
   }
 
-  const supabase = getSupabaseClient();
+  const supabase = ticketData.nodeId ? getNodeClient(ticketData.nodeId) : getSupabaseClient();
   if (supabase) {
     const { data, error } = await supabase.from('support_tickets').insert(newTicket).select().single();
     if (error) console.warn('Ticket error Supabase:', error);
@@ -1649,12 +1675,13 @@ export const createSupportTicket = async (ticketData) => {
   return newTicket;
 };
 
-export const updateSupportTicketStatus = async (ticketId, { status, resolutionNotes, assignedTo }) => {
+export const updateSupportTicketStatus = async (ticketId, { status, resolutionNotes, assignedTo, nodeId }) => {
   const updates = {
     status,
     resolution_notes: resolutionNotes,
     assigned_to: assignedTo,
-    resolved_at: status === 'RESUELTO' ? new Date().toISOString() : null
+    resolved_at: status === 'RESUELTO' ? new Date().toISOString() : null,
+    updated_at: new Date().toISOString()
   };
 
   // Local
@@ -1669,15 +1696,25 @@ export const updateSupportTicketStatus = async (ticketId, { status, resolutionNo
     console.warn(e);
   }
 
-  const supabase = getSupabaseClient();
-  if (supabase) {
-    await supabase.from('support_tickets').update(updates).eq('id', ticketId);
+  const targetNodes = nodeId 
+    ? [getAllNodes().find(n => n.id === nodeId)].filter(Boolean)
+    : getAllNodes();
+
+  for (const node of targetNodes) {
+    const client = getNodeClient(node.id);
+    if (client) {
+      try {
+        await client.from('support_tickets').update(updates).eq('id', ticketId);
+      } catch (err) {
+        console.warn(`Error actualizando ticket en nodo ${node.id}:`, err);
+      }
+    }
   }
 
   return { success: true };
 };
 
-export const deleteSupportTicket = async (ticketId) => {
+export const deleteSupportTicket = async (ticketId, nodeId) => {
   // Local
   try {
     const existing = JSON.parse(localStorage.getItem('vx_support_tickets') || '[]');
@@ -1687,9 +1724,19 @@ export const deleteSupportTicket = async (ticketId) => {
     console.warn(e);
   }
 
-  const supabase = getSupabaseClient();
-  if (supabase) {
-    await supabase.from('support_tickets').delete().eq('id', ticketId);
+  const targetNodes = nodeId 
+    ? [getAllNodes().find(n => n.id === nodeId)].filter(Boolean)
+    : getAllNodes();
+
+  for (const node of targetNodes) {
+    const client = getNodeClient(node.id);
+    if (client) {
+      try {
+        await client.from('support_tickets').delete().eq('id', ticketId);
+      } catch (err) {
+        console.warn(`Error eliminando ticket en nodo ${node.id}:`, err);
+      }
+    }
   }
 
   return { success: true };

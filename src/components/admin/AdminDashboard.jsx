@@ -28,6 +28,13 @@ import DeviceManagerModal from './DeviceManagerModal';
 import ReceiptModal from './ReceiptModal';
 import FeatureFlagsModal from './FeatureFlagsModal';
 import ClientPaymentPortalModal from './ClientPaymentPortalModal';
+import BcvRateModal from './BcvRateModal';
+import { 
+  startBcvAutoSync, 
+  getCachedBcvRate, 
+  fetchCurrentBcvRate, 
+  syncBcvRateToAllNodes 
+} from '../../lib/bcvRateService';
 
 // Tabs
 import FinanzasTab from './tabs/FinanzasTab';
@@ -77,14 +84,27 @@ export default function AdminDashboard({ onBackToLanding }) {
   const [selectedPaymentForReceipt, setSelectedPaymentForReceipt] = useState(null);
   const [selectedBusinessForReceipt, setSelectedBusinessForReceipt] = useState(null);
 
+  // BCV Sync State
+  const [bcvRateInfo, setBcvRateInfo] = useState(() => getCachedBcvRate());
+  const [isBcvModalOpen, setIsBcvModalOpen] = useState(false);
+  const [isSyncingBcvHeader, setIsSyncingBcvHeader] = useState(false);
+
   useEffect(() => {
     if (isAuthenticated) {
       checkAndFetch();
 
+      // Iniciar auto-sincronización periódica cada 30 min y al arrancar
+      const stopAutoSync = startBcvAutoSync((newInfo) => {
+        setBcvRateInfo(newInfo);
+        setGlobalConfig(prev => ({ ...prev, bcvRate: newInfo.rate }));
+        showToast(`⚡ Tasa BCV sincronizada automáticamente a Bs. ${newInfo.rate.toFixed(2)}`);
+      }, 30);
+
       // Suscripción Realtime a cambios en Supabase
       const supabase = getSupabaseClient();
+      let channel = null;
       if (supabase) {
-        const channel = supabase
+        channel = supabase
           .channel('ventrox-admin-realtime')
           .on('postgres_changes', { event: '*', schema: 'public', table: 'businesses' }, () => {
             checkAndFetch();
@@ -102,11 +122,12 @@ export default function AdminDashboard({ onBackToLanding }) {
             checkAndFetch();
           })
           .subscribe();
-
-        return () => {
-          supabase.removeChannel(channel);
-        };
       }
+
+      return () => {
+        if (stopAutoSync) stopAutoSync();
+        if (supabase && channel) supabase.removeChannel(channel);
+      };
     }
   }, [isAuthenticated]);
 
@@ -446,6 +467,53 @@ export default function AdminDashboard({ onBackToLanding }) {
           </div>
 
           <div className="flex items-center gap-2.5 shrink-0">
+            {/* Widget Interactivo Tasa BCV Oficial */}
+            <div className="flex items-center gap-1.5 bg-gradient-to-r from-emerald-500/10 to-cyan-500/10 border border-emerald-500/30 hover:border-emerald-500/60 rounded-xl px-2.5 py-1.5 transition-all shadow-sm">
+              <button
+                type="button"
+                onClick={() => setIsBcvModalOpen(true)}
+                className="flex items-center gap-2 cursor-pointer text-left group"
+                title="Abrir Gestor Central de Tasa BCV Oficial"
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0 group-hover:scale-125 transition-transform" />
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider leading-none">
+                    BCV OFICIAL
+                  </span>
+                  <span className="text-xs sm:text-sm font-black text-emerald-400 font-mono leading-tight">
+                    Bs. {Number(bcvRateInfo?.rate || globalConfig.bcvRate || 65.50).toFixed(2)}
+                  </span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  setIsSyncingBcvHeader(true);
+                  try {
+                    const res = await fetchCurrentBcvRate();
+                    if (res.success && res.rate > 0) {
+                      const syncRes = await syncBcvRateToAllNodes(res.rate, res.source);
+                      setBcvRateInfo(syncRes);
+                      setGlobalConfig(prev => ({ ...prev, bcvRate: res.rate }));
+                      showToast(`⚡ Tasa BCV sincronizada a Bs. ${res.rate.toFixed(2)} (${res.source})`);
+                    } else {
+                      showToast(`⚠️ No se pudo consultar la tasa: ${res.error}`);
+                    }
+                  } catch (e) {
+                    showToast(`❌ Error: ${e.message}`);
+                  } finally {
+                    setIsSyncingBcvHeader(false);
+                  }
+                }}
+                disabled={isSyncingBcvHeader}
+                className="p-1 rounded-lg hover:bg-white/10 text-cyan-400 hover:text-white transition-colors cursor-pointer"
+                title="Sincronizar tasa BCV oficial ahora desde APIs"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncingBcvHeader ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+
             <button
               onClick={checkAndFetch}
               className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl font-bold text-xs bg-white/[0.06] hover:bg-white/[0.12] text-slate-200 hover:text-white border border-white/10 backdrop-blur-md transition-all cursor-pointer"
@@ -717,6 +785,18 @@ export default function AdminDashboard({ onBackToLanding }) {
         onClose={() => setIsClientPortalOpen(false)}
         onPaymentSubmitted={() => {
           showToast('Pago reportado exitosamente.');
+          checkAndFetch();
+        }}
+      />
+
+      <BcvRateModal
+        isOpen={isBcvModalOpen}
+        onClose={() => setIsBcvModalOpen(false)}
+        currentRateInfo={bcvRateInfo}
+        onRateUpdated={(newInfo) => {
+          setBcvRateInfo(newInfo);
+          setGlobalConfig(prev => ({ ...prev, bcvRate: newInfo.rate }));
+          showToast(`✅ Tasa BCV propagada en tiempo real a Bs. ${newInfo.rate.toFixed(2)}`);
           checkAndFetch();
         }}
       />

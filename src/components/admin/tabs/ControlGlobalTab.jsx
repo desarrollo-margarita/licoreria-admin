@@ -5,9 +5,12 @@ import {
 } from 'lucide-react';
 import Button from '../../ui/Button';
 import { fetchGlobalConfig, saveGlobalConfig } from '../../../lib/storageService';
+import { fetchCurrentBcvRate } from '../../../lib/bcvRateService';
 
 export default function ControlGlobalTab({ onConfigSaved }) {
   const [bcvRate, setBcvRate] = useState('65.50');
+  const [bcvSource, setBcvSource] = useState('');
+  const [consultingBcv, setConsultingBcv] = useState(false);
   const [minPosVersion, setMinPosVersion] = useState('1.0.0');
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [maintenanceMessage, setMaintenanceMessage] = useState('Sistema en mantenimiento preventivo. Volvemos en breve.');
@@ -36,6 +39,25 @@ export default function ControlGlobalTab({ onConfigSaved }) {
     loadConfig();
   }, []);
 
+  const handleConsultLiveBcv = async () => {
+    setConsultingBcv(true);
+    try {
+      const res = await fetchCurrentBcvRate();
+      if (res.success && res.rate > 0) {
+        setBcvRate(res.rate.toString());
+        setBcvSource(res.source);
+        setSuccessMsg(`¡Tasa oficial consultada desde ${res.source}: Bs. ${res.rate.toFixed(4)}! Haz clic en "Guardar y Replicar" para transmitirla.`);
+        setTimeout(() => setSuccessMsg(''), 5000);
+      } else {
+        alert(res.error || 'No se pudo conectar a los proveedores oficiales.');
+      }
+    } catch (err) {
+      alert(`Error en consulta: ${err.message}`);
+    } finally {
+      setConsultingBcv(false);
+    }
+  };
+
   const handleSave = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -49,7 +71,7 @@ export default function ControlGlobalTab({ onConfigSaved }) {
         maintenanceMessage
       });
 
-      setSuccessMsg('¡Parámetros globales actualizados y sincronizados en la red!');
+      setSuccessMsg('¡Parámetros globales y tasa BCV actualizados y propagados en tiempo real a todas las cajas!');
       if (onConfigSaved) {
         onConfigSaved({ bcvRate: parseFloat(bcvRate) || 65.50, minPosVersion, maintenanceMode, maintenanceMessage });
       }
@@ -103,20 +125,42 @@ export default function ControlGlobalTab({ onConfigSaved }) {
               <DollarSign className="w-4 h-4 text-emerald-400" />
               Sincronizador Central de Tasa BCV Oficial
             </span>
-            <span className="text-xs text-slate-400">Bs. / USD</span>
+            <div className="flex items-center gap-2">
+              {bcvSource && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-300">
+                  {bcvSource}
+                </span>
+              )}
+              <span className="text-xs text-slate-400">Bs. / USD</span>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
             <div>
-              <label className="block text-xs text-slate-400 mb-1">Tasa Oficial de Cambio (VES por 1 USD)</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs text-slate-400">Tasa Oficial de Cambio (VES por 1 USD)</label>
+                <button
+                  type="button"
+                  onClick={handleConsultLiveBcv}
+                  disabled={consultingBcv}
+                  className="text-[11px] font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  title="Consultar en vivo a DolarAPI y Open Exchange Rates"
+                >
+                  <RefreshCw className={`w-3 h-3 ${consultingBcv ? 'animate-spin' : ''}`} />
+                  <span>{consultingBcv ? 'Consultando...' : 'Consultar APIs en Vivo'}</span>
+                </button>
+              </div>
               <div className="relative">
                 <span className="text-slate-500 font-bold text-sm absolute left-3 top-2.5">Bs.</span>
                 <input
                   type="number"
-                  step="0.01"
+                  step="0.0001"
                   required
                   value={bcvRate}
-                  onChange={(e) => setBcvRate(e.target.value)}
+                  onChange={(e) => {
+                    setBcvRate(e.target.value);
+                    setBcvSource('Manual');
+                  }}
                   className="w-full bg-slate-950 border border-slate-700/80 rounded-xl pl-10 pr-3 py-2.5 text-base font-bold font-mono text-emerald-400 focus:outline-none focus:border-emerald-500"
                 />
               </div>
@@ -125,7 +169,7 @@ export default function ControlGlobalTab({ onConfigSaved }) {
             <div className="bg-slate-950/60 border border-emerald-500/20 rounded-xl p-3.5 text-xs text-slate-300 space-y-1">
               <p className="font-semibold text-emerald-300">💡 Impacto en el Ecosistema:</p>
               <p className="text-slate-400 text-[11px]">
-                Esta tasa se replica a todos los comercios activos. Si una caja no tiene conexión con la API del BCV, usará este valor como respaldo oficial.
+                Esta tasa se replica a todos los comercios activos. Si una caja no tiene conexión con la API del BCV, usará este valor como respaldo oficial y se propaga vía Realtime por WebSockets.
               </p>
             </div>
           </div>
