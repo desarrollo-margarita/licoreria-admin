@@ -24,7 +24,7 @@ export default function ClientPaymentPortalModal({ isOpen, onClose, businesses =
     setSelectedLicense(lic);
     const b = businesses.find(x => x.licenseKey === lic);
     if (b) {
-      const fee = b.monthlyFeeUsd || 80;
+      const fee = b.monthlyFeeUsd || 99;
       setAmountUsd(fee.toString());
       setAmountVes((fee * bcvRate).toFixed(2));
     }

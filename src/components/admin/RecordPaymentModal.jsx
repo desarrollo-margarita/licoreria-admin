@@ -118,7 +118,7 @@ export default function RecordPaymentModal({ isOpen, business, onClose, onPaymen
                 min="0"
                 value={amountUsd}
                 onChange={e => setAmountUsd(e.target.value)}
-                placeholder="ej. 80.00"
+                placeholder="ej. 99.00"
                 required
                 className="w-full bg-slate-950/90 border border-white/15 rounded-2xl px-4 py-3 text-sm font-bold text-emerald-400 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 transition-all font-mono"
               />

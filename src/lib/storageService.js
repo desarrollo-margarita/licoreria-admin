@@ -210,7 +210,7 @@ export const fetchAllBusinesses = async () => {
             nodeId: resolvedSubNodeId,
             nodeName: resolvedSubNodeName,
             status: sub.status || 'ACTIVA',
-            monthlyFeeUsd: parseFloat(sub.monthly_fee_usd || 80),
+            monthlyFeeUsd: parseFloat(sub.monthly_fee_usd || 99),
             maxBoxes: parseInt(sub.max_boxes || 2),
             connectedDevices,
             ltvUsd: ltv,
@@ -1132,7 +1132,7 @@ export const updateBusinessInfo = async (licenseKey, updatedData) => {
   const email = updatedData.email?.trim() || null;
   const contact = updatedData.contactPerson?.trim() || null;
   const maxBoxes = Math.max(1, parseInt(updatedData.maxBoxes, 10) || 1);
-  const fee = parseFloat(updatedData.monthlyFeeUsd) || 80.00;
+  const fee = parseFloat(updatedData.monthlyFeeUsd) || 99.00;
   const notes = updatedData.notes?.trim() || null;
 
   // Buscar ID del negocio

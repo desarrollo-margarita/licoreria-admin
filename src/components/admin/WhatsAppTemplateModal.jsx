@@ -23,7 +23,7 @@ export default function WhatsAppTemplateModal({ isOpen, business, onClose, onSen
   const waPhone = cleanPhone.startsWith('0') ? '58' + cleanPhone.substring(1) : cleanPhone;
   const contactName = business.contactPerson || business.businessName;
   const expDateFormatted = formatDate(new Date(business.expirationDate));
-  const feeFormatted = `$${parseFloat(business.monthlyFeeUsd || 80).toFixed(2)}`;
+  const feeFormatted = `$${parseFloat(business.monthlyFeeUsd || 99).toFixed(2)}`;
 
   const templates = [
     {

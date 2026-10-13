@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS public.subscriptions (
     license_key TEXT UNIQUE NOT NULL,
     plan_type TEXT DEFAULT 'ANUAL',
     status TEXT DEFAULT 'ACTIVA',
-    monthly_fee_usd NUMERIC DEFAULT 80.00,
+    monthly_fee_usd NUMERIC DEFAULT 99.00,
     max_boxes INTEGER DEFAULT 2,
     start_date TIMESTAMPTZ DEFAULT now(),
     expiration_date TIMESTAMPTZ NOT NULL,

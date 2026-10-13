@@ -31,7 +31,7 @@ export default function EditBusinessModal({ isOpen, onClose, business, onUpdated
   const [email, setEmail] = useState('');
   const [businessType, setBusinessType] = useState('licoreria');
   const [maxBoxes, setMaxBoxes] = useState(1);
-  const [monthlyFeeUsd, setMonthlyFeeUsd] = useState('80.00');
+  const [monthlyFeeUsd, setMonthlyFeeUsd] = useState('99.00');
   const [notes, setNotes] = useState('');
   const [currentKey, setCurrentKey] = useState('');
   const [convertingKey, setConvertingKey] = useState(false);
@@ -47,7 +47,7 @@ export default function EditBusinessModal({ isOpen, onClose, business, onUpdated
       setEmail(business.email || '');
       setBusinessType(business.businessType || business.rubro || 'licoreria');
       setMaxBoxes(business.maxBoxes || 1);
-      setMonthlyFeeUsd(business.monthlyFeeUsd !== undefined ? String(business.monthlyFeeUsd) : '80.00');
+      setMonthlyFeeUsd(business.monthlyFeeUsd !== undefined ? String(business.monthlyFeeUsd) : '99.00');
       setNotes(business.notes || '');
       setCurrentKey(business.licenseKey || '');
       setErrorMsg('');

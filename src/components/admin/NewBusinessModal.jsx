@@ -33,7 +33,7 @@ export default function NewBusinessModal({ isOpen, onClose, onCreated }) {
   const [businessType, setBusinessType] = useState('licoreria');
   const [nodeId, setNodeId] = useState('node-default');
   const [nodesList, setNodesList] = useState([]);
-  const [fee, setFee] = useState('80.00');
+  const [fee, setFee] = useState('99.00');
   const [boxes, setBoxes] = useState('2');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
